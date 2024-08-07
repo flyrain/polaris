@@ -52,4 +52,5 @@ if (System.getProperty("idea.sync.active").toBoolean()) {
   }
 }
 
+
 eclipse { project { name = ideName } }
