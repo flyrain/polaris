@@ -23,6 +23,7 @@ import java.util.Map;
 import org.apache.polaris.core.PolarisCallContext;
 import org.apache.polaris.core.entity.PolarisBaseEntity;
 import org.apache.polaris.core.entity.PolarisEntityConstants;
+import org.apache.polaris.core.persistence.dao.PolarisMetaStoreManager;
 import org.apache.polaris.core.storage.PolarisStorageConfigurationInfo;
 
 public abstract class BaseMetaStoreManager implements PolarisMetaStoreManager {
