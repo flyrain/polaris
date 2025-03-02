@@ -29,11 +29,9 @@ import org.apache.polaris.core.auth.AuthenticatedPolarisPrincipal;
 import org.apache.polaris.core.context.CallContext;
 import org.apache.polaris.core.context.RealmContext;
 import org.apache.polaris.core.entity.PolarisEntity;
-import org.apache.polaris.core.entity.PolarisEntitySubType;
-import org.apache.polaris.core.entity.PolarisEntityType;
 import org.apache.polaris.core.entity.PrincipalEntity;
 import org.apache.polaris.core.persistence.MetaStoreManagerFactory;
-import org.apache.polaris.core.persistence.PolarisMetaStoreManager;
+import org.apache.polaris.core.persistence.dao.PolarisMetaStoreManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -61,21 +59,18 @@ public abstract class BasePolarisAuthenticator
 
   protected Optional<AuthenticatedPolarisPrincipal> getPrincipal(DecodedToken tokenInfo) {
     LOGGER.debug("Resolving principal for tokenInfo client_id={}", tokenInfo.getClientId());
-    PolarisMetaStoreManager metaStoreManager =
-        metaStoreManagerFactory.getOrCreateMetaStoreManager(callContext.getRealmContext());
+    var principalDAO =
+        metaStoreManagerFactory.getOrCreatePrincipalDao(callContext.getRealmContext());
     PolarisEntity principal;
     try {
       principal =
           tokenInfo.getPrincipalId() > 0
               ? PolarisEntity.of(
-                  metaStoreManager.loadEntity(
-                      callContext.getPolarisCallContext(), 0L, tokenInfo.getPrincipalId()))
+                  principalDAO.loadPrincipalById(
+                      callContext.getPolarisCallContext(), tokenInfo.getPrincipalId()))
               : PolarisEntity.of(
-                  metaStoreManager.readEntityByName(
+                  principalDAO.readPrincipalByName(
                       callContext.getPolarisCallContext(),
-                      null,
-                      PolarisEntityType.PRINCIPAL,
-                      PolarisEntitySubType.NULL_SUBTYPE,
                       tokenInfo.getSub()));
     } catch (Exception e) {
       LOGGER
