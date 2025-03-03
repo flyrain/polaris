@@ -60,7 +60,7 @@ public class JWTSymmetricKeyFactory implements TokenBrokerFactory {
   @Override
   public TokenBroker apply(RealmContext realmContext) {
     return new JWTSymmetricKeyBroker(
-        metaStoreManagerFactory.getOrCreateMetaStoreManager(realmContext),
+        metaStoreManagerFactory.getOrCreateDaoManager(realmContext),
         (int) maxTokenGeneration.toSeconds(),
         secretSupplier);
   }

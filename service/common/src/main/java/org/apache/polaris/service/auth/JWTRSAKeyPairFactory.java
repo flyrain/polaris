@@ -51,7 +51,7 @@ public class JWTRSAKeyPairFactory implements TokenBrokerFactory {
   @Override
   public TokenBroker apply(RealmContext realmContext) {
     return new JWTRSAKeyPair(
-        metaStoreManagerFactory.getOrCreateMetaStoreManager(realmContext),
+        metaStoreManagerFactory.getOrCreateDaoManager(realmContext),
         (int) tokenBrokerConfiguration.maxTokenGeneration().toSeconds(),
         keyPairConfiguration.publicKeyFile(),
         keyPairConfiguration.privateKeyFile());

@@ -30,12 +30,13 @@ import java.security.interfaces.RSAPrivateKey;
 import java.security.interfaces.RSAPublicKey;
 import java.util.HashMap;
 import org.apache.polaris.core.PolarisCallContext;
-import org.apache.polaris.core.auth.PolarisSecretsManager.PrincipalSecretsResult;
 import org.apache.polaris.core.entity.PolarisBaseEntity;
 import org.apache.polaris.core.entity.PolarisEntitySubType;
 import org.apache.polaris.core.entity.PolarisEntityType;
 import org.apache.polaris.core.entity.PolarisPrincipalSecrets;
-import org.apache.polaris.core.persistence.PolarisMetaStoreManager;
+import org.apache.polaris.core.persistence.dao.DaoManager;
+import org.apache.polaris.core.persistence.dao.PolarisMetaStoreManager;
+import org.apache.polaris.core.persistence.dao.PolarisSecretsManager.PrincipalSecretsResult;
 import org.apache.polaris.service.auth.JWTRSAKeyPair;
 import org.apache.polaris.service.auth.LocalRSAKeyProvider;
 import org.apache.polaris.service.auth.PemUtils;
@@ -60,11 +61,14 @@ public class JWTRSAKeyPairTest {
 
     DefaultConfigurationStore store = new DefaultConfigurationStore(new HashMap<>());
     PolarisCallContext polarisCallContext = new PolarisCallContext(null, null, store, null);
-    PolarisMetaStoreManager metastoreManager = Mockito.mock(PolarisMetaStoreManager.class);
+    var daoManager = Mockito.mock(DaoManager.class);
     String mainSecret = "client-secret";
     PolarisPrincipalSecrets principalSecrets =
         new PolarisPrincipalSecrets(1L, clientId, mainSecret, "otherSecret");
-    Mockito.when(metastoreManager.loadPrincipalSecrets(polarisCallContext, clientId))
+    Mockito.when(
+            daoManager
+                .getPolarisSecretsManager()
+                .loadPrincipalSecrets(polarisCallContext, clientId))
         .thenReturn(new PrincipalSecretsResult(principalSecrets));
     PolarisBaseEntity principal =
         new PolarisBaseEntity(
@@ -74,10 +78,10 @@ public class JWTRSAKeyPairTest {
             PolarisEntitySubType.NULL_SUBTYPE,
             0L,
             "principal");
-    Mockito.when(metastoreManager.loadEntity(polarisCallContext, 0L, 1L))
+    Mockito.when(daoManager.getPrincipalDAO().loadPrincipalById(polarisCallContext, 1L))
         .thenReturn(new PolarisMetaStoreManager.EntityResult(principal));
     TokenBroker tokenBroker =
-        new JWTRSAKeyPair(metastoreManager, 420, publicFileLocation, privateFileLocation);
+        new JWTRSAKeyPair(daoManager, 420, publicFileLocation, privateFileLocation);
     TokenResponse token =
         tokenBroker.generateFromClientSecrets(
             clientId,

@@ -22,7 +22,7 @@ import com.auth0.jwt.algorithms.Algorithm;
 import java.nio.file.Path;
 import java.security.interfaces.RSAPrivateKey;
 import java.security.interfaces.RSAPublicKey;
-import org.apache.polaris.core.persistence.PolarisMetaStoreManager;
+import org.apache.polaris.core.persistence.dao.DaoManager;
 
 /** Generates a JWT using a Public/Private RSA Key */
 public class JWTRSAKeyPair extends JWTBroker {
@@ -30,11 +30,11 @@ public class JWTRSAKeyPair extends JWTBroker {
   private final KeyProvider keyProvider;
 
   public JWTRSAKeyPair(
-      PolarisMetaStoreManager metaStoreManager,
+      DaoManager daoManager,
       int maxTokenGenerationInSeconds,
       Path publicKeyFile,
       Path privateKeyFile) {
-    super(metaStoreManager, maxTokenGenerationInSeconds);
+    super(daoManager, maxTokenGenerationInSeconds);
     keyProvider = new LocalRSAKeyProvider(publicKeyFile, privateKeyFile);
   }
 

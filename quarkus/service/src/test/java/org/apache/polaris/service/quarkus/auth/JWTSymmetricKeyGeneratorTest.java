@@ -32,7 +32,8 @@ import org.apache.polaris.core.entity.PolarisBaseEntity;
 import org.apache.polaris.core.entity.PolarisEntitySubType;
 import org.apache.polaris.core.entity.PolarisEntityType;
 import org.apache.polaris.core.entity.PolarisPrincipalSecrets;
-import org.apache.polaris.core.persistence.PolarisMetaStoreManager;
+import org.apache.polaris.core.persistence.dao.DaoManager;
+import org.apache.polaris.core.persistence.dao.PolarisMetaStoreManager;
 import org.apache.polaris.service.auth.JWTSymmetricKeyBroker;
 import org.apache.polaris.service.auth.TokenBroker;
 import org.apache.polaris.service.auth.TokenRequestValidator;
@@ -64,12 +65,15 @@ public class JWTSymmetricKeyGeneratorTest {
             return Map.of();
           }
         });
-    PolarisMetaStoreManager metastoreManager = Mockito.mock(PolarisMetaStoreManager.class);
+    var daoManager = Mockito.mock(DaoManager.class);
     String mainSecret = "test_secret";
     String clientId = "test_client_id";
     PolarisPrincipalSecrets principalSecrets =
         new PolarisPrincipalSecrets(1L, clientId, mainSecret, "otherSecret");
-    Mockito.when(metastoreManager.loadPrincipalSecrets(polarisCallContext, clientId))
+    Mockito.when(
+            daoManager
+                .getPolarisSecretsManager()
+                .loadPrincipalSecrets(polarisCallContext, clientId))
         .thenReturn(new PolarisMetaStoreManager.PrincipalSecretsResult(principalSecrets));
     PolarisBaseEntity principal =
         new PolarisBaseEntity(
@@ -79,9 +83,9 @@ public class JWTSymmetricKeyGeneratorTest {
             PolarisEntitySubType.NULL_SUBTYPE,
             0L,
             "principal");
-    Mockito.when(metastoreManager.loadEntity(polarisCallContext, 0L, 1L))
+    Mockito.when(daoManager.getPrincipalDAO().loadPrincipalById(polarisCallContext, 1L))
         .thenReturn(new PolarisMetaStoreManager.EntityResult(principal));
-    TokenBroker generator = new JWTSymmetricKeyBroker(metastoreManager, 666, () -> "polaris");
+    TokenBroker generator = new JWTSymmetricKeyBroker(daoManager, 666, () -> "polaris");
     TokenResponse token =
         generator.generateFromClientSecrets(
             clientId,
