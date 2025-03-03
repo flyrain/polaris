@@ -76,7 +76,6 @@ import org.apache.polaris.core.admin.model.AwsStorageConfigInfo;
 import org.apache.polaris.core.admin.model.StorageConfigInfo;
 import org.apache.polaris.core.auth.AuthenticatedPolarisPrincipal;
 import org.apache.polaris.core.auth.PolarisAuthorizerImpl;
-import org.apache.polaris.core.auth.PolarisSecretsManager.PrincipalSecretsResult;
 import org.apache.polaris.core.context.CallContext;
 import org.apache.polaris.core.context.RealmContext;
 import org.apache.polaris.core.entity.CatalogEntity;
@@ -89,10 +88,12 @@ import org.apache.polaris.core.entity.TaskEntity;
 import org.apache.polaris.core.persistence.BaseResult;
 import org.apache.polaris.core.persistence.MetaStoreManagerFactory;
 import org.apache.polaris.core.persistence.PolarisEntityManager;
-import org.apache.polaris.core.persistence.PolarisMetaStoreManager;
 import org.apache.polaris.core.persistence.PolarisResolvedPathWrapper;
 import org.apache.polaris.core.persistence.bootstrap.RootCredentialsSet;
 import org.apache.polaris.core.persistence.cache.EntityCache;
+import org.apache.polaris.core.persistence.dao.PolarisMetaStoreManager;
+import org.apache.polaris.core.persistence.dao.PolarisSecretsManager.PrincipalSecretsResult;
+import org.apache.polaris.core.persistence.dao.PrincipalDAO;
 import org.apache.polaris.core.persistence.transactional.TransactionalPersistence;
 import org.apache.polaris.core.storage.PolarisCredentialProperty;
 import org.apache.polaris.core.storage.PolarisStorageActions;
@@ -361,6 +362,11 @@ public class BasePolarisCatalogTest extends CatalogTests<BasePolarisCatalog> {
 
       @Override
       public Map<String, BaseResult> purgeRealms(Iterable<String> realms) {
+        throw new NotImplementedException("Purging realms is not supported");
+      }
+
+      @Override
+      public PrincipalDAO getOrCreatePrincipalDao(RealmContext realmContext) {
         throw new NotImplementedException("Purging realms is not supported");
       }
     };

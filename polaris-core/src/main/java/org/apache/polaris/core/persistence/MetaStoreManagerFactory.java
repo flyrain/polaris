@@ -20,10 +20,12 @@ package org.apache.polaris.core.persistence;
 
 import java.util.Map;
 import java.util.function.Supplier;
-import org.apache.polaris.core.auth.PolarisSecretsManager.PrincipalSecretsResult;
 import org.apache.polaris.core.context.RealmContext;
 import org.apache.polaris.core.persistence.bootstrap.RootCredentialsSet;
 import org.apache.polaris.core.persistence.cache.EntityCache;
+import org.apache.polaris.core.persistence.dao.DaoManager;
+import org.apache.polaris.core.persistence.dao.PolarisMetaStoreManager;
+import org.apache.polaris.core.persistence.dao.PolarisSecretsManager.PrincipalSecretsResult;
 import org.apache.polaris.core.persistence.transactional.TransactionalPersistence;
 import org.apache.polaris.core.storage.cache.StorageCredentialCache;
 
@@ -43,4 +45,6 @@ public interface MetaStoreManagerFactory {
 
   /** Purge all metadata for the realms provided */
   Map<String, BaseResult> purgeRealms(Iterable<String> realms);
+
+  DaoManager getOrCreateDaoManager(RealmContext realmContext);
 }

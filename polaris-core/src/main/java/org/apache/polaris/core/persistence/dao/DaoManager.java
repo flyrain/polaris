@@ -18,23 +18,38 @@
  */
 package org.apache.polaris.core.persistence.dao;
 
-import jakarta.annotation.Nonnull;
-import org.apache.polaris.core.PolarisCallContext;
+public class DaoManager {
+  private PrincipalDAO principalDAO;
+  private PrincipalRoleDAO principalRoleDAO;
+  private PolarisSecretsManager polarisSecretsManager;
 
-public interface PrincipalDAO {
-  // in fdb, this can call loadEntity(callCtx, 0, id)
-  PolarisMetaStoreManager.EntityResult loadPrincipalById(
-      @Nonnull PolarisCallContext callCtx, long id);
+  private CatalogDAO catalogDAO;
+  private NamespaceDAO namespaceDAO;
+  private TableDAO tableDAO;
 
-  // in fdb, this can call readEntityByName(callCtx, null,
-  // PolarisEntityType.PRINCIPAL,PolarisEntitySubType.NULL_SUBTYPE, name)
-  PolarisMetaStoreManager.EntityResult readPrincipalByName(
-      @Nonnull PolarisCallContext callCtx, @Nonnull String name);
+  public DaoManager(PrincipalDAO principalDAO) {}
 
-  // in fdb, call listEntities(
-  //            getCurrentPolarisContext(),
-  //            null,
-  //            PolarisEntityType.PRINCIPAL,
-  //            PolarisEntitySubType.NULL_SUBTYPE)
-  PolarisMetaStoreManager.ListEntitiesResult listPrincipals(@Nonnull PolarisCallContext callCtx);
+  public PrincipalDAO getPrincipalDAO() {
+    return principalDAO;
+  }
+
+  public CatalogDAO getCatalogDAO() {
+    return catalogDAO;
+  }
+
+  public NamespaceDAO getNamespaceDAO() {
+    return namespaceDAO;
+  }
+
+  public TableDAO getTableDAO() {
+    return tableDAO;
+  }
+
+  public PrincipalRoleDAO getPrincipalRoleDAO() {
+    return principalRoleDAO;
+  }
+
+  public PolarisSecretsManager getPolarisSecretsManager() {
+    return polarisSecretsManager;
+  }
 }

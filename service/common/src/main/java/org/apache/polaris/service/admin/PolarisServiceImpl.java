@@ -67,6 +67,7 @@ import org.apache.polaris.core.entity.PrincipalEntity;
 import org.apache.polaris.core.entity.PrincipalRoleEntity;
 import org.apache.polaris.core.persistence.MetaStoreManagerFactory;
 import org.apache.polaris.core.persistence.PolarisEntityManager;
+import org.apache.polaris.core.persistence.dao.DaoManager;
 import org.apache.polaris.core.persistence.dao.PolarisMetaStoreManager;
 import org.apache.polaris.service.admin.api.PolarisCatalogsApiService;
 import org.apache.polaris.service.admin.api.PolarisPrincipalRolesApiService;
@@ -113,8 +114,14 @@ public class PolarisServiceImpl
         entityManagerFactory.getOrCreateEntityManager(realmContext);
     PolarisMetaStoreManager metaStoreManager =
         metaStoreManagerFactory.getOrCreateMetaStoreManager(realmContext);
+    DaoManager daoManager = metaStoreManagerFactory.getOrCreateDaoManager(realmContext);
     return new PolarisAdminService(
-        callContext, entityManager, metaStoreManager, securityContext, polarisAuthorizer);
+        callContext,
+        entityManager,
+        metaStoreManager,
+        securityContext,
+        polarisAuthorizer,
+        daoManager);
   }
 
   /** From PolarisCatalogsApiService */

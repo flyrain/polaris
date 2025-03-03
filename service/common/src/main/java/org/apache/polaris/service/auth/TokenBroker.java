@@ -21,10 +21,11 @@ package org.apache.polaris.service.auth;
 import jakarta.annotation.Nonnull;
 import java.util.Optional;
 import org.apache.polaris.core.PolarisCallContext;
-import org.apache.polaris.core.auth.PolarisSecretsManager.PrincipalSecretsResult;
 import org.apache.polaris.core.entity.PolarisEntityType;
 import org.apache.polaris.core.entity.PrincipalEntity;
-import org.apache.polaris.core.persistence.PolarisMetaStoreManager;
+import org.apache.polaris.core.persistence.dao.DaoManager;
+import org.apache.polaris.core.persistence.dao.PolarisMetaStoreManager;
+import org.apache.polaris.core.persistence.dao.PolarisSecretsManager.PrincipalSecretsResult;
 import org.apache.polaris.service.types.TokenType;
 
 /** Generic token class intended to be extended by different token types */
@@ -111,13 +112,13 @@ public interface TokenBroker {
   DecodedToken verify(String token);
 
   static @Nonnull Optional<PrincipalEntity> findPrincipalEntity(
-      PolarisMetaStoreManager metaStoreManager,
+      DaoManager daoManager,
       String clientId,
       String clientSecret,
       PolarisCallContext polarisCallContext) {
     // Validate the principal is present and secrets match
     PrincipalSecretsResult principalSecrets =
-        metaStoreManager.loadPrincipalSecrets(polarisCallContext, clientId);
+        daoManager.getPolarisSecretsManager().loadPrincipalSecrets(polarisCallContext, clientId);
     if (!principalSecrets.isSuccess()) {
       return Optional.empty();
     }
@@ -125,8 +126,10 @@ public interface TokenBroker {
       return Optional.empty();
     }
     PolarisMetaStoreManager.EntityResult result =
-        metaStoreManager.loadEntity(
-            polarisCallContext, 0L, principalSecrets.getPrincipalSecrets().getPrincipalId());
+        daoManager
+            .getPrincipalDAO()
+            .loadPrincipalById(
+                polarisCallContext, principalSecrets.getPrincipalSecrets().getPrincipalId());
     if (!result.isSuccess() || result.getEntity().getType() != PolarisEntityType.PRINCIPAL) {
       return Optional.empty();
     }

@@ -26,7 +26,6 @@ import java.util.function.Supplier;
 import org.apache.polaris.core.PolarisCallContext;
 import org.apache.polaris.core.PolarisDefaultDiagServiceImpl;
 import org.apache.polaris.core.PolarisDiagnostics;
-import org.apache.polaris.core.auth.PolarisSecretsManager.PrincipalSecretsResult;
 import org.apache.polaris.core.context.CallContext;
 import org.apache.polaris.core.context.RealmContext;
 import org.apache.polaris.core.entity.PolarisEntity;
@@ -36,6 +35,9 @@ import org.apache.polaris.core.entity.PolarisEntityType;
 import org.apache.polaris.core.entity.PolarisPrincipalSecrets;
 import org.apache.polaris.core.persistence.bootstrap.RootCredentialsSet;
 import org.apache.polaris.core.persistence.cache.EntityCache;
+import org.apache.polaris.core.persistence.dao.DaoManager;
+import org.apache.polaris.core.persistence.dao.PolarisMetaStoreManager;
+import org.apache.polaris.core.persistence.dao.PolarisSecretsManager.PrincipalSecretsResult;
 import org.apache.polaris.core.persistence.transactional.PolarisMetaStoreManagerImpl;
 import org.apache.polaris.core.persistence.transactional.TransactionalPersistence;
 import org.apache.polaris.core.storage.cache.StorageCredentialCache;
@@ -51,6 +53,7 @@ public abstract class LocalPolarisMetaStoreManagerFactory<StoreType>
     implements MetaStoreManagerFactory {
 
   final Map<String, PolarisMetaStoreManager> metaStoreManagerMap = new HashMap<>();
+  final Map<String, DaoManager> daoManagerMap = new HashMap<>();
   final Map<String, StorageCredentialCache> storageCredentialCacheMap = new HashMap<>();
   final Map<String, EntityCache> entityCacheMap = new HashMap<>();
   final Map<String, StoreType> backingStoreMap = new HashMap<>();
@@ -145,6 +148,17 @@ public abstract class LocalPolarisMetaStoreManagerFactory<StoreType>
           realmContext, metaStoreManagerMap.get(realmContext.getRealmIdentifier()));
     }
     return metaStoreManagerMap.get(realmContext.getRealmIdentifier());
+  }
+
+  @Override
+  public synchronized DaoManager getOrCreateDaoManager(RealmContext realmContext) {
+    if (!daoManagerMap.containsKey(realmContext.getRealmIdentifier())) {
+      // todo create a new DaoManager including all DAO objects
+      // initializeForRealm(realmContext, null);
+      // checkPolarisServiceBootstrappedForRealm(
+      //        realmContext, metaStoreManagerMap.get(realmContext.getRealmIdentifier()));
+    }
+    return daoManagerMap.get(realmContext.getRealmIdentifier());
   }
 
   @Override

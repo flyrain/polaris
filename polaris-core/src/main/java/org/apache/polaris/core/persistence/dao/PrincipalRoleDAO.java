@@ -20,21 +20,12 @@ package org.apache.polaris.core.persistence.dao;
 
 import jakarta.annotation.Nonnull;
 import org.apache.polaris.core.PolarisCallContext;
+import org.apache.polaris.core.entity.PolarisEntityCore;
 
-public interface PrincipalDAO {
-  // in fdb, this can call loadEntity(callCtx, 0, id)
-  PolarisMetaStoreManager.EntityResult loadPrincipalById(
-      @Nonnull PolarisCallContext callCtx, long id);
-
-  // in fdb, this can call readEntityByName(callCtx, null,
-  // PolarisEntityType.PRINCIPAL,PolarisEntitySubType.NULL_SUBTYPE, name)
-  PolarisMetaStoreManager.EntityResult readPrincipalByName(
-      @Nonnull PolarisCallContext callCtx, @Nonnull String name);
-
-  // in fdb, call listEntities(
-  //            getCurrentPolarisContext(),
-  //            null,
-  //            PolarisEntityType.PRINCIPAL,
-  //            PolarisEntitySubType.NULL_SUBTYPE)
-  PolarisMetaStoreManager.ListEntitiesResult listPrincipals(@Nonnull PolarisCallContext callCtx);
+public interface PrincipalRoleDAO {
+  // todo in fdb, call metaStoreManager.dropEntityIfExists(
+  //            getCurrentPolarisContext(), null, entity, Map.of(), false);
+  @Nonnull
+  PolarisMetaStoreManager.DropEntityResult dropPrincipalRole(
+      @Nonnull PolarisCallContext callCtx, @Nonnull PolarisEntityCore principalRole);
 }

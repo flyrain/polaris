@@ -65,7 +65,6 @@ import org.apache.polaris.core.admin.model.ViewPrivilege;
 import org.apache.polaris.core.auth.AuthenticatedPolarisPrincipal;
 import org.apache.polaris.core.auth.PolarisAuthorizableOperation;
 import org.apache.polaris.core.auth.PolarisAuthorizer;
-import org.apache.polaris.core.auth.PolarisGrantManager.LoadGrantsResult;
 import org.apache.polaris.core.catalog.PolarisCatalogHelpers;
 import org.apache.polaris.core.context.CallContext;
 import org.apache.polaris.core.entity.CatalogEntity;
@@ -82,8 +81,10 @@ import org.apache.polaris.core.entity.PrincipalEntity;
 import org.apache.polaris.core.entity.PrincipalRoleEntity;
 import org.apache.polaris.core.entity.TableLikeEntity;
 import org.apache.polaris.core.persistence.PolarisEntityManager;
-import org.apache.polaris.core.persistence.PolarisMetaStoreManager;
 import org.apache.polaris.core.persistence.PolarisResolvedPathWrapper;
+import org.apache.polaris.core.persistence.dao.DaoManager;
+import org.apache.polaris.core.persistence.dao.PolarisGrantManager.LoadGrantsResult;
+import org.apache.polaris.core.persistence.dao.PolarisMetaStoreManager;
 import org.apache.polaris.core.persistence.resolver.PolarisResolutionManifest;
 import org.apache.polaris.core.persistence.resolver.ResolverPath;
 import org.apache.polaris.core.persistence.resolver.ResolverStatus;
@@ -113,6 +114,7 @@ public class PolarisAdminService {
   private final AuthenticatedPolarisPrincipal authenticatedPrincipal;
   private final PolarisAuthorizer authorizer;
   private final PolarisMetaStoreManager metaStoreManager;
+  private final DaoManager daoManager;
 
   // Initialized in the authorize methods.
   private PolarisResolutionManifest resolutionManifest = null;
@@ -122,11 +124,13 @@ public class PolarisAdminService {
       @NotNull PolarisEntityManager entityManager,
       @NotNull PolarisMetaStoreManager metaStoreManager,
       @NotNull SecurityContext securityContext,
-      @NotNull PolarisAuthorizer authorizer) {
+      @NotNull PolarisAuthorizer authorizer,
+      @Nonnull DaoManager daoManager) {
     this.callContext = callContext;
     this.entityManager = entityManager;
     this.metaStoreManager = metaStoreManager;
     this.securityContext = securityContext;
+    this.daoManager = daoManager;
     PolarisDiagnostics diagServices = callContext.getPolarisCallContext().getDiagServices();
     diagServices.checkNotNull(securityContext, "null_security_context");
     diagServices.checkNotNull(securityContext.getUserPrincipal(), "null_security_context");
@@ -573,7 +577,9 @@ public class PolarisAdminService {
             .setCreateTimestamp(System.currentTimeMillis())
             .build();
     PolarisMetaStoreManager.CreateCatalogResult catalogResult =
-        metaStoreManager.createCatalog(getCurrentPolarisContext(), polarisEntity, List.of());
+        daoManager
+            .getCatalogDAO()
+            .createCatalog(getCurrentPolarisContext(), polarisEntity, List.of());
     if (catalogResult.alreadyExists()) {
       throw new AlreadyExistsException(
           "Cannot create Catalog %s. Catalog already exists or resolution failed",
@@ -596,8 +602,7 @@ public class PolarisAdminService {
             .getConfigurationStore()
             .getConfiguration(polarisCallContext, PolarisConfiguration.CLEANUP_ON_CATALOG_DROP);
     PolarisMetaStoreManager.DropEntityResult dropEntityResult =
-        metaStoreManager.dropEntityIfExists(
-            getCurrentPolarisContext(), null, entity, Map.of(), cleanup);
+        daoManager.getCatalogDAO().dropCatalog(getCurrentPolarisContext(), entity, cleanup);
 
     // at least some handling of error
     if (!dropEntityResult.isSuccess()) {
@@ -796,8 +801,7 @@ public class PolarisAdminService {
             .orElseThrow(() -> new NotFoundException("Principal %s not found", name));
     // TODO: Handle return value in case of concurrent modification
     PolarisMetaStoreManager.DropEntityResult dropEntityResult =
-        metaStoreManager.dropEntityIfExists(
-            getCurrentPolarisContext(), null, entity, Map.of(), false);
+        daoManager.getPrincipalRoleDAO().dropPrincipalRole(getCurrentPolarisContext(), entity);
 
     // at least some handling of error
     if (!dropEntityResult.isSuccess()) {
@@ -909,12 +913,9 @@ public class PolarisAdminService {
     PolarisAuthorizableOperation op = PolarisAuthorizableOperation.LIST_PRINCIPALS;
     authorizeBasicRootOperationOrThrow(op);
 
-    return metaStoreManager
-        .listEntities(
-            getCurrentPolarisContext(),
-            null,
-            PolarisEntityType.PRINCIPAL,
-            PolarisEntitySubType.NULL_SUBTYPE)
+    return daoManager
+        .getPrincipalDAO()
+        .listPrincipals(getCurrentPolarisContext())
         .getEntities()
         .stream()
         .map(
