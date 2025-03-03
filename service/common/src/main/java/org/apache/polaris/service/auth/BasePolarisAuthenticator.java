@@ -60,7 +60,7 @@ public abstract class BasePolarisAuthenticator
   protected Optional<AuthenticatedPolarisPrincipal> getPrincipal(DecodedToken tokenInfo) {
     LOGGER.debug("Resolving principal for tokenInfo client_id={}", tokenInfo.getClientId());
     var principalDAO =
-        metaStoreManagerFactory.getOrCreatePrincipalDao(callContext.getRealmContext());
+        metaStoreManagerFactory.getOrCreateDaoManager(callContext.getRealmContext()).getPrincipalDAO();
     PolarisEntity principal;
     try {
       principal =
@@ -70,8 +70,7 @@ public abstract class BasePolarisAuthenticator
                       callContext.getPolarisCallContext(), tokenInfo.getPrincipalId()))
               : PolarisEntity.of(
                   principalDAO.readPrincipalByName(
-                      callContext.getPolarisCallContext(),
-                      tokenInfo.getSub()));
+                      callContext.getPolarisCallContext(), tokenInfo.getSub()));
     } catch (Exception e) {
       LOGGER
           .atError()

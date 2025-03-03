@@ -50,8 +50,7 @@ public class BasePolarisAuthenticatorTest {
     callContext = CallContext.of(realmContext, polarisCallContext);
     principalDAO = Mockito.mock(PrincipalDAO.class);
     MetaStoreManagerFactory metaStoreManagerFactory = Mockito.mock(MetaStoreManagerFactory.class);
-    when(metaStoreManagerFactory.getOrCreatePrincipalDao(realmContext))
-        .thenReturn(principalDAO);
+    when(metaStoreManagerFactory.getOrCreateDaoManager(realmContext).getPrincipalDAO()).thenReturn(principalDAO);
     authenticator =
         new BasePolarisAuthenticator(metaStoreManagerFactory, callContext) {
           @Override
