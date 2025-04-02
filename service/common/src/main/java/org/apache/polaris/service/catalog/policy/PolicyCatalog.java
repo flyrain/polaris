@@ -38,6 +38,7 @@ import org.apache.polaris.core.persistence.resolver.PolarisResolutionManifestCat
 import org.apache.polaris.core.policy.PolicyEntity;
 import org.apache.polaris.core.policy.PolicyType;
 import org.apache.polaris.core.policy.exceptions.NoSuchPolicyException;
+import org.apache.polaris.core.policy.exceptions.PolicyResourceMismatchException;
 import org.apache.polaris.core.policy.exceptions.PolicyVersionMismatchException;
 import org.apache.polaris.core.policy.validator.PolicyValidators;
 import org.apache.polaris.service.types.Policy;
@@ -219,6 +220,37 @@ public class PolicyCatalog {
                 false);
 
     return dropEntityResult.isSuccess();
+  }
+
+  public boolean attachPolicy(PolicyIdentifier policyIdentifier, PolarisEntity targetEntity) {
+    PolarisResolvedPathWrapper resolvedEntities =
+            resolvedEntityView.getPassthroughResolvedPath(
+                    policyIdentifier, PolarisEntityType.POLICY, PolarisEntitySubType.NULL_SUBTYPE);
+    if (resolvedEntities == null) {
+      throw new NoSuchPolicyException(String.format("Policy does not exist: %s", policyIdentifier));
+    }
+
+    List<PolarisEntity> catalogPath = resolvedEntities.getRawParentPath();
+    PolarisEntity leafEntity = resolvedEntities.getRawLeafEntity();
+    var policyEntity = PolicyEntity.of(leafEntity);
+
+    var canAttach = PolicyValidators.canAttach(policyEntity, targetEntity);
+    if(!canAttach) {
+      var message = String.format("Cannot attach policy %s to target entity %s", policyIdentifier, targetEntity);
+      throw new PolicyResourceMismatchException(message);
+    }
+
+//    getMetaStoreManager().
+//
+    return true;
+  }
+
+  public boolean deattachPolicy(PolicyIdentifier policyIdentifier, PolarisEntity targetEntity) {
+    return true;
+  }
+
+  public List<PolicyEntity> getApplicablePolicies(PolarisEntity targetEntity) {
+    return null;
   }
 
   private PolicyEntity createPolicyEntity(PolicyIdentifier identifier, PolarisEntity entity) {
