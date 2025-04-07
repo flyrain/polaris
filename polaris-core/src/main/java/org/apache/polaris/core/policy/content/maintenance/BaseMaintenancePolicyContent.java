@@ -26,7 +26,7 @@ import java.util.Map;
 import java.util.Set;
 import org.apache.polaris.core.policy.content.PolicyContent;
 import org.apache.polaris.core.policy.content.StrictBooleanDeserializer;
-import org.apache.polaris.core.policy.validator.InvalidPolicyException;
+import org.apache.polaris.core.policy.exceptions.InvalidPolicyException;
 
 public abstract class BaseMaintenancePolicyContent implements PolicyContent {
   @JsonDeserialize(using = StrictBooleanDeserializer.class)

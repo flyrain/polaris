@@ -29,7 +29,7 @@ import org.apache.polaris.core.policy.content.maintenance.DataCompactionPolicyCo
 import org.apache.polaris.core.policy.content.maintenance.MetadataCompactionPolicyContent;
 import org.apache.polaris.core.policy.content.maintenance.OrphanFileRemovalPolicyContent;
 import org.apache.polaris.core.policy.content.maintenance.SnapshotRetentionPolicyContent;
-import org.apache.polaris.core.policy.validator.InvalidPolicyException;
+import org.apache.polaris.core.policy.exceptions.InvalidPolicyException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;

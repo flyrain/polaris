@@ -23,7 +23,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.common.base.Strings;
 import java.util.Set;
 import org.apache.polaris.core.policy.content.PolicyContentUtil;
-import org.apache.polaris.core.policy.validator.InvalidPolicyException;
+import org.apache.polaris.core.policy.exceptions.InvalidPolicyException;
 
 public class MetadataCompactionPolicyContent extends BaseMaintenancePolicyContent {
   private static final String DEFAULT_POLICY_SCHEMA_VERSION = "2025-02-03";

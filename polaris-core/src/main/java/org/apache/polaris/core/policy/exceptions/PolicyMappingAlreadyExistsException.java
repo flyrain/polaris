@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.polaris.core.persistence;
+package org.apache.polaris.core.policy.exceptions;
 
 import com.google.errorprone.annotations.FormatMethod;
 import org.apache.polaris.core.exceptions.PolarisException;

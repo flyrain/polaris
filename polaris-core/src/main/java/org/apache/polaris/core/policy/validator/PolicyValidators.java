@@ -26,6 +26,7 @@ import org.apache.polaris.core.policy.content.maintenance.DataCompactionPolicyCo
 import org.apache.polaris.core.policy.content.maintenance.MetadataCompactionPolicyContent;
 import org.apache.polaris.core.policy.content.maintenance.OrphanFileRemovalPolicyContent;
 import org.apache.polaris.core.policy.content.maintenance.SnapshotRetentionPolicyContent;
+import org.apache.polaris.core.policy.exceptions.InvalidPolicyException;
 import org.apache.polaris.core.policy.exceptions.PolicyAttachException;
 import org.apache.polaris.core.policy.validator.maintenance.BaseMaintenancePolicyValidator;
 import org.slf4j.Logger;

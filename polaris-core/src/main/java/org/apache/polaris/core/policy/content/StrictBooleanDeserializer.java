@@ -22,7 +22,7 @@ import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.databind.DeserializationContext;
 import com.fasterxml.jackson.databind.JsonDeserializer;
 import java.io.IOException;
-import org.apache.polaris.core.policy.validator.InvalidPolicyException;
+import org.apache.polaris.core.policy.exceptions.InvalidPolicyException;
 
 public class StrictBooleanDeserializer extends JsonDeserializer<Boolean> {
   @Override

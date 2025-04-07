@@ -24,7 +24,7 @@ import com.google.common.base.Strings;
 import java.util.List;
 import java.util.Set;
 import org.apache.polaris.core.policy.content.PolicyContentUtil;
-import org.apache.polaris.core.policy.validator.InvalidPolicyException;
+import org.apache.polaris.core.policy.exceptions.InvalidPolicyException;
 
 public class OrphanFileRemovalPolicyContent extends BaseMaintenancePolicyContent {
   private static final String DEFAULT_POLICY_SCHEMA_VERSION = "2025-02-03";

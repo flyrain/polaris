@@ -25,7 +25,7 @@ import static org.apache.polaris.core.entity.PolarisEntityType.TABLE_LIKE;
 import java.util.Set;
 import org.apache.polaris.core.entity.PolarisEntitySubType;
 import org.apache.polaris.core.entity.PolarisEntityType;
-import org.apache.polaris.core.policy.validator.InvalidPolicyException;
+import org.apache.polaris.core.policy.exceptions.InvalidPolicyException;
 import org.apache.polaris.core.policy.validator.PolicyValidator;
 
 public class BaseMaintenancePolicyValidator implements PolicyValidator {

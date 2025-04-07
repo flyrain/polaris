@@ -66,6 +66,7 @@ import org.apache.polaris.core.persistence.dao.entity.ValidateAccessResult;
 import org.apache.polaris.core.policy.PolarisPolicyMappingRecord;
 import org.apache.polaris.core.policy.PolicyEntity;
 import org.apache.polaris.core.policy.PolicyType;
+import org.apache.polaris.core.policy.exceptions.PolicyMappingAlreadyExistsException;
 import org.apache.polaris.core.storage.PolarisCredentialProperty;
 import org.apache.polaris.core.storage.PolarisStorageActions;
 import org.apache.polaris.core.storage.PolarisStorageConfigurationInfo;

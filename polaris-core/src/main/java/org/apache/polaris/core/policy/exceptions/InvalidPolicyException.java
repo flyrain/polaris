@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.polaris.core.policy.validator;
+package org.apache.polaris.core.policy.exceptions;
 
 import org.apache.polaris.core.exceptions.PolarisException;
 

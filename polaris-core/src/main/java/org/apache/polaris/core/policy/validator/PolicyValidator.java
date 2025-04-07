@@ -20,6 +20,7 @@ package org.apache.polaris.core.policy.validator;
 
 import org.apache.polaris.core.entity.PolarisEntitySubType;
 import org.apache.polaris.core.entity.PolarisEntityType;
+import org.apache.polaris.core.policy.exceptions.InvalidPolicyException;
 
 /** Validates and parses a given policy content string against its defined schema. */
 public interface PolicyValidator {

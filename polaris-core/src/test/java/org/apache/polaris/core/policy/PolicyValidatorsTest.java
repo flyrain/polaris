@@ -30,7 +30,7 @@ import org.apache.polaris.core.entity.CatalogEntity;
 import org.apache.polaris.core.entity.NamespaceEntity;
 import org.apache.polaris.core.entity.PrincipalEntity;
 import org.apache.polaris.core.entity.table.IcebergTableLikeEntity;
-import org.apache.polaris.core.policy.validator.InvalidPolicyException;
+import org.apache.polaris.core.policy.exceptions.InvalidPolicyException;
 import org.apache.polaris.core.policy.validator.PolicyValidators;
 import org.junit.jupiter.api.Test;
 
