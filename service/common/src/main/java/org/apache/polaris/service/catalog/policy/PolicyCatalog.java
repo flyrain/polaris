@@ -254,7 +254,6 @@ public class PolicyCatalog {
   }
 
   public boolean dropPolicy(PolicyIdentifier policyIdentifier, boolean detachAll) {
-    // TODO: Implement detachAll when we support attach/detach policy
     var resolvedPolicyPath = getResolvedPathWrapper(policyIdentifier);
     var catalogPath = resolvedPolicyPath.getRawParentPath();
     var policyEntity = resolvedPolicyPath.getRawLeafEntity();
@@ -265,7 +264,7 @@ public class PolicyCatalog {
             PolarisEntity.toCoreList(catalogPath),
             policyEntity,
             Map.of(),
-            false);
+            detachAll);
 
     if (!result.isSuccess()) {
       throw new IllegalStateException(
@@ -432,7 +431,8 @@ public class PolicyCatalog {
               callContext.getPolarisCallContext(), target, policyType);
     }
 
-    return result.getEntities().stream().map(PolicyEntity::of).toList();
+    // make sure there is no null object in the return list
+    return result.getEntities().stream().filter(Objects::nonNull).map(PolicyEntity::of).toList();
   }
 
   private List<PolarisEntity> getFullPath(Namespace namespace, String targetName) {

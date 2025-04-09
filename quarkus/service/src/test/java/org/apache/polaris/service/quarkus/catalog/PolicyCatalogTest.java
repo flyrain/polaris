@@ -496,8 +496,7 @@ public class PolicyCatalogTest {
   @Test
   public void testDropPolicy() {
     icebergCatalog.createNamespace(NS);
-    policyCatalog.createPolicy(
-        POLICY1, PredefinedPolicyTypes.DATA_COMPACTION.getName(), "test", "{\"enable\": false}");
+    policyCatalog.createPolicy(POLICY1, DATA_COMPACTION.getName(), "test", "{\"enable\": false}");
 
     policyCatalog.dropPolicy(POLICY1, false);
     assertThatThrownBy(() -> policyCatalog.loadPolicy(POLICY1))
@@ -510,6 +509,24 @@ public class PolicyCatalogTest {
 
     assertThatThrownBy(() -> policyCatalog.dropPolicy(POLICY1, false))
         .isInstanceOf(NoSuchPolicyException.class);
+  }
+
+  @Test
+  public void testDropPolicyWithCleanup() {
+    icebergCatalog.createNamespace(NS);
+    policyCatalog.createPolicy(POLICY1, DATA_COMPACTION.getName(), "test", "{\"enable\": false}");
+    policyCatalog.attachPolicy(POLICY1, POLICY_ATTACH_TARGET_NS, null);
+    policyCatalog.dropPolicy(POLICY1, true);
+    assertThat(policyCatalog.getApplicablePolicies(NS, null, null).size()).isEqualTo(0);
+  }
+
+  @Test
+  public void testDropPolicyWithoutCleanup() {
+    icebergCatalog.createNamespace(NS);
+    policyCatalog.createPolicy(POLICY1, DATA_COMPACTION.getName(), "test", "{\"enable\": false}");
+    policyCatalog.attachPolicy(POLICY1, POLICY_ATTACH_TARGET_NS, null);
+    policyCatalog.dropPolicy(POLICY1, false);
+    assertThat(policyCatalog.getApplicablePolicies(NS, null, null).size()).isEqualTo(1);
   }
 
   @Test
