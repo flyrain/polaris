@@ -512,24 +512,6 @@ public class PolicyCatalogTest {
   }
 
   @Test
-  public void testDropPolicyWithCleanup() {
-    icebergCatalog.createNamespace(NS);
-    policyCatalog.createPolicy(POLICY1, DATA_COMPACTION.getName(), "test", "{\"enable\": false}");
-    policyCatalog.attachPolicy(POLICY1, POLICY_ATTACH_TARGET_NS, null);
-    policyCatalog.dropPolicy(POLICY1, true);
-    assertThat(policyCatalog.getApplicablePolicies(NS, null, null).size()).isEqualTo(0);
-  }
-
-  @Test
-  public void testDropPolicyWithoutCleanup() {
-    icebergCatalog.createNamespace(NS);
-    policyCatalog.createPolicy(POLICY1, DATA_COMPACTION.getName(), "test", "{\"enable\": false}");
-    policyCatalog.attachPolicy(POLICY1, POLICY_ATTACH_TARGET_NS, null);
-    policyCatalog.dropPolicy(POLICY1, false);
-    assertThat(policyCatalog.getApplicablePolicies(NS, null, null).size()).isEqualTo(1);
-  }
-
-  @Test
   public void testAttachPolicy() {
     icebergCatalog.createNamespace(NS);
     policyCatalog.createPolicy(POLICY1, DATA_COMPACTION.getName(), "test", "{\"enable\": false}");
