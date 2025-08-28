@@ -145,7 +145,10 @@ public class PolarisOverlappingTableTest {
     Map<String, String> properties = new HashMap<>();
     properties.put("location", catalogLocation + "/ns1");
     CreateNamespaceRequest createNamespaceRequest =
-        CreateNamespaceRequest.builder().withNamespace(Namespace.of(namespace)).setProperties(properties).build();
+        CreateNamespaceRequest.builder()
+            .withNamespace(Namespace.of(namespace))
+            .setProperties(properties)
+            .build();
     try (Response response =
         services
             .restApi()
@@ -427,19 +430,20 @@ public class PolarisOverlappingTableTest {
 
   @Test
   void testCreateTableWithPropertiesWriteMetadataPath(@TempDir Path tmpDir) {
-         Map<String, Object> strictServicesWithOptimizedOverlapCheck =
-             Map.of(
-                     "ALLOW_UNSTRUCTURED_TABLE_LOCATION",
-                     "false",
-                     "ALLOW_TABLE_LOCATION_OVERLAP",
-                     "true",
-                     "ALLOW_INSECURE_STORAGE_TYPES",
-                     "true",
-                     "SUPPORTED_CATALOG_STORAGE_TYPES",
-                     List.of("FILE"),
-                     OPTIMIZED_SIBLING_CHECK.key(),
-                     "true");
-         TestServices services = TestServices.builder().config(strictServicesWithOptimizedOverlapCheck).build();
+    Map<String, Object> strictServicesWithOptimizedOverlapCheck =
+        Map.of(
+            "ALLOW_UNSTRUCTURED_TABLE_LOCATION",
+            "false",
+            "ALLOW_TABLE_LOCATION_OVERLAP",
+            "true",
+            "ALLOW_INSECURE_STORAGE_TYPES",
+            "true",
+            "SUPPORTED_CATALOG_STORAGE_TYPES",
+            List.of("FILE"),
+            OPTIMIZED_SIBLING_CHECK.key(),
+            "true");
+    TestServices services =
+        TestServices.builder().config(strictServicesWithOptimizedOverlapCheck).build();
 
     // Create catalog and namespace
     String baseLocation = tmpDir.toAbsolutePath().toUri().toString();
