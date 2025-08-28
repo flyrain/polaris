@@ -27,6 +27,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import jakarta.ws.rs.core.Response;
 import java.nio.file.Path;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -141,8 +142,10 @@ public class PolarisOverlappingTableTest {
       assertThat(response.getStatus()).isEqualTo(Response.Status.CREATED.getStatusCode());
     }
 
+    Map<String, String> properties = new HashMap<>();
+    properties.put("location", catalogLocation + "/ns1");
     CreateNamespaceRequest createNamespaceRequest =
-        CreateNamespaceRequest.builder().withNamespace(Namespace.of(namespace)).build();
+        CreateNamespaceRequest.builder().withNamespace(Namespace.of(namespace)).setProperties(properties).build();
     try (Response response =
         services
             .restApi()
@@ -423,7 +426,7 @@ public class PolarisOverlappingTableTest {
   }
 
   @Test
-  void testUpdateTablePropertiesWriteMetadataPath(@TempDir Path tmpDir) {
+  void testCreateTableWithPropertiesWriteMetadataPath(@TempDir Path tmpDir) {
          Map<String, Object> strictServicesWithOptimizedOverlapCheck =
              Map.of(
                      "ALLOW_UNSTRUCTURED_TABLE_LOCATION",
