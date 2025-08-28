@@ -421,4 +421,75 @@ public class PolarisOverlappingTableTest {
     assertThat(createTableWithName(services, "determinism_check").substring(baseLocation.length()))
         .isEqualTo("/test-catalog/1110/1010/0001/01111010/ns/determinism_check");
   }
+
+  @Test
+  void testUpdateTablePropertiesWriteMetadataPath(@TempDir Path tmpDir) {
+         Map<String, Object> strictServicesWithOptimizedOverlapCheck =
+             Map.of(
+                     "ALLOW_UNSTRUCTURED_TABLE_LOCATION",
+                     "false",
+                     "ALLOW_TABLE_LOCATION_OVERLAP",
+                     "true",
+                     "ALLOW_INSECURE_STORAGE_TYPES",
+                     "true",
+                     "SUPPORTED_CATALOG_STORAGE_TYPES",
+                     List.of("FILE"),
+                     OPTIMIZED_SIBLING_CHECK.key(),
+                     "true");
+         TestServices services = TestServices.builder().config(strictServicesWithOptimizedOverlapCheck).build();
+
+    // Create catalog and namespace
+    String baseLocation = tmpDir.toAbsolutePath().toUri().toString();
+    if (baseLocation.endsWith("/")) {
+      baseLocation = baseLocation.substring(0, baseLocation.length() - 1);
+    }
+    createCatalogAndNamespace(services, Map.of(), baseLocation);
+
+    // Create a table with properties
+    String tableName = getTableName();
+    String propertyKey = "write.metadata.path";
+    // Set metadata path within the table's allowed location area
+    String propertyValue = baseLocation + "/test-catalog/ns/" + tableName + "/metadata";
+
+    CreateTableRequest createTableRequest =
+        CreateTableRequest.builder()
+            .withName(tableName)
+            .withSchema(SCHEMA)
+            .setProperty(propertyKey, propertyValue)
+            .build();
+
+    try (Response createResponse =
+        services
+            .restApi()
+            .createTable(
+                catalog,
+                namespace,
+                createTableRequest,
+                null,
+                services.realmContext(),
+                services.securityContext())) {
+      assertThat(createResponse.getStatus()).isEqualTo(Response.Status.OK.getStatusCode());
+    }
+
+    // Verify the table was created successfully and has the property set
+    try (Response loadResponse =
+        services
+            .restApi()
+            .loadTable(
+                catalog,
+                namespace,
+                tableName,
+                null,
+                null,
+                "ALL",
+                services.realmContext(),
+                services.securityContext())) {
+
+      assertThat(loadResponse.getStatus()).isEqualTo(Response.Status.OK.getStatusCode());
+      LoadTableResponse response = loadResponse.readEntity(LoadTableResponse.class);
+
+      // Verify the property was set during table creation
+      assertThat(response.tableMetadata().properties()).containsEntry(propertyKey, propertyValue);
+    }
+  }
 }
