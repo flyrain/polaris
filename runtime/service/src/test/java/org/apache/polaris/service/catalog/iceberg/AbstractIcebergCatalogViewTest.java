@@ -18,6 +18,8 @@
  */
 package org.apache.polaris.service.catalog.iceberg;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.when;
 
 import com.google.common.collect.ImmutableMap;
@@ -28,11 +30,15 @@ import java.io.IOException;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.catalog.Catalog;
+import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.exceptions.ForbiddenException;
+import org.apache.iceberg.view.BaseView;
 import org.apache.iceberg.view.View;
 import org.apache.iceberg.view.ViewCatalogTests;
 import org.apache.polaris.core.PolarisCallContext;
@@ -49,6 +55,7 @@ import org.apache.polaris.core.config.RealmConfig;
 import org.apache.polaris.core.context.RealmContext;
 import org.apache.polaris.core.entity.CatalogEntity;
 import org.apache.polaris.core.entity.PrincipalEntity;
+import org.apache.polaris.core.entity.table.IcebergTableLikeEntity;
 import org.apache.polaris.core.persistence.MetaStoreManagerFactory;
 import org.apache.polaris.core.persistence.PolarisMetaStoreManager;
 import org.apache.polaris.core.persistence.resolver.ResolutionManifestFactory;
@@ -70,7 +77,6 @@ import org.apache.polaris.service.events.PolarisEventListener;
 import org.apache.polaris.service.events.TestPolarisEventListener;
 import org.apache.polaris.service.storage.PolarisStorageIntegrationProviderImpl;
 import org.apache.polaris.service.test.TestData;
-import org.assertj.core.api.Assertions;
 import org.assertj.core.api.Assumptions;
 import org.assertj.core.configuration.PreferredAssumptionException;
 import org.junit.jupiter.api.AfterEach;
@@ -124,6 +130,7 @@ public abstract class AbstractIcebergCatalogViewTest extends ViewCatalogTests<Ic
   private UserSecretsManager userSecretsManager;
   private PolarisCallContext polarisContext;
   private RealmConfig realmConfig;
+  private StorageConfigInfo storageConfig;
 
   private TestPolarisEventListener testPolarisEventListener;
 
@@ -186,6 +193,10 @@ public abstract class AbstractIcebergCatalogViewTest extends ViewCatalogTests<Ic
             securityContext,
             authorizer,
             reservedProperties);
+    storageConfig =
+        new FileStorageConfigInfo(
+            //            StorageConfigInfo.StorageTypeEnum.FILE, List.of("file://", "/", "*"));
+            StorageConfigInfo.StorageTypeEnum.FILE, List.of("file://tmp"));
     adminService.createCatalog(
         new CreateCatalogRequest(
             new CatalogEntity.Builder()
@@ -196,11 +207,7 @@ public abstract class AbstractIcebergCatalogViewTest extends ViewCatalogTests<Ic
                     FeatureConfiguration.ALLOW_UNSTRUCTURED_TABLE_LOCATION.catalogConfig(), "true")
                 .addProperty(FeatureConfiguration.DROP_WITH_PURGE_ENABLED.catalogConfig(), "true")
                 .setDefaultBaseLocation("file://tmp")
-                .setStorageConfigurationInfo(
-                    realmConfig,
-                    new FileStorageConfigInfo(
-                        StorageConfigInfo.StorageTypeEnum.FILE, List.of("file://", "/", "*")),
-                    "file://tmp")
+                .setStorageConfigurationInfo(realmConfig, storageConfig, "file://tmp")
                 .build()
                 .asCatalog()));
 
@@ -271,19 +278,128 @@ public abstract class AbstractIcebergCatalogViewTest extends ViewCatalogTests<Ic
     view.updateProperties().set(key, valNew).commit();
 
     var beforeRefreshEvent = testPolarisEventListener.getLatest(BeforeViewRefreshedEvent.class);
-    Assertions.assertThat(beforeRefreshEvent.viewIdentifier()).isEqualTo(TestData.TABLE);
+    assertThat(beforeRefreshEvent.viewIdentifier()).isEqualTo(TestData.TABLE);
 
     var afterRefreshEvent = testPolarisEventListener.getLatest(AfterViewRefreshedEvent.class);
-    Assertions.assertThat(afterRefreshEvent.viewIdentifier()).isEqualTo(TestData.TABLE);
+    assertThat(afterRefreshEvent.viewIdentifier()).isEqualTo(TestData.TABLE);
 
     var beforeCommitEvent = testPolarisEventListener.getLatest(BeforeViewCommitedEvent.class);
-    Assertions.assertThat(beforeCommitEvent.identifier()).isEqualTo(TestData.TABLE);
-    Assertions.assertThat(beforeCommitEvent.base().properties().get(key)).isEqualTo(valOld);
-    Assertions.assertThat(beforeCommitEvent.metadata().properties().get(key)).isEqualTo(valNew);
+    assertThat(beforeCommitEvent.identifier()).isEqualTo(TestData.TABLE);
+    assertThat(beforeCommitEvent.base().properties().get(key)).isEqualTo(valOld);
+    assertThat(beforeCommitEvent.metadata().properties().get(key)).isEqualTo(valNew);
 
     var afterCommitEvent = testPolarisEventListener.getLatest(AfterViewCommitedEvent.class);
-    Assertions.assertThat(afterCommitEvent.identifier()).isEqualTo(TestData.TABLE);
-    Assertions.assertThat(afterCommitEvent.base().properties().get(key)).isEqualTo(valOld);
-    Assertions.assertThat(afterCommitEvent.metadata().properties().get(key)).isEqualTo(valNew);
+    assertThat(afterCommitEvent.identifier()).isEqualTo(TestData.TABLE);
+    assertThat(afterCommitEvent.base().properties().get(key)).isEqualTo(valOld);
+    assertThat(afterCommitEvent.metadata().properties().get(key)).isEqualTo(valNew);
+  }
+
+  @Test
+  void testViewWithAllowedLocations(@TempDir Path tmpDir) {
+    TableIdentifier identifier = TableIdentifier.of("ns", "view");
+    catalog().createNamespace(identifier.namespace());
+    assertThat(catalog().viewExists(identifier)).as("View should not exist").isFalse();
+
+    // create a view with allowed locations
+    String customAllowedLocation1 =
+        Paths.get(storageConfig.getAllowedLocations().getFirst(), "custom-location1").toString();
+    String customAllowedLocation2 =
+        Paths.get(storageConfig.getAllowedLocations().getFirst(), "custom-location2").toString();
+    View view =
+        catalog()
+            .buildView(identifier)
+            .withSchema(SCHEMA)
+            .withDefaultNamespace(identifier.namespace())
+            .withDefaultCatalog(catalog().name())
+            .withQuery("spark", "select * from ns.tbl")
+            .withProperty(
+                IcebergTableLikeEntity.USER_SPECIFIED_WRITE_METADATA_LOCATION_KEY,
+                customAllowedLocation1)
+            .withLocation(customAllowedLocation2)
+            .create();
+
+    assertThat(catalog().viewExists(identifier)).as("View should exist").isTrue();
+    assertThat(view.properties()).containsEntry("write.metadata.path", customAllowedLocation1);
+    assertThat(((BaseView) view).operations().current().metadataFileLocation())
+        .isNotNull()
+        .startsWith(customAllowedLocation1);
+
+    // update the view with allowed locations
+    String customAllowedLocation3 =
+        Paths.get(storageConfig.getAllowedLocations().getFirst(), "custom-location3").toString();
+    catalog()
+        .loadView(identifier)
+        .updateProperties()
+        .set(
+            IcebergTableLikeEntity.USER_SPECIFIED_WRITE_METADATA_LOCATION_KEY,
+            customAllowedLocation3)
+        .commit();
+    assertThat(catalog().loadView(identifier).properties())
+        .containsEntry("write.metadata.path", customAllowedLocation3);
+  }
+
+  @Test
+  void testCreateTableOutsideCatalogAllowedLocations(@TempDir Path tmpDir) {
+    var locationNotAllowed = Paths.get(tmpDir.toUri().toString()).toString();
+    var locationAllowed =
+        Paths.get(storageConfig.getAllowedLocations().getFirst(), "custom-location").toString();
+
+    TableIdentifier identifier = TableIdentifier.of("ns", "view");
+    catalog().createNamespace(identifier.namespace());
+    assertThat(catalog().viewExists(identifier)).as("View should not exist").isFalse();
+
+    // update a view with location not allowed
+    catalog()
+        .buildView(identifier)
+        .withSchema(SCHEMA)
+        .withDefaultNamespace(identifier.namespace())
+        .withDefaultCatalog(catalog().name())
+        .withQuery("spark", "select * from ns.tbl")
+        .withLocation(locationAllowed)
+        .create();
+
+    assertThatThrownBy(
+            () ->
+                catalog()
+                    .loadView(identifier)
+                    .updateProperties()
+                    .set(
+                        IcebergTableLikeEntity.USER_SPECIFIED_WRITE_METADATA_LOCATION_KEY,
+                        locationNotAllowed)
+                    .commit())
+        .isInstanceOf(ForbiddenException.class)
+        .hasMessageContaining("Invalid locations");
+
+    // create a view with location not allowed
+    var viewId2 = TableIdentifier.of("ns", "view2");
+    assertThatThrownBy(
+            () ->
+                catalog()
+                    .buildView(viewId2)
+                    .withSchema(SCHEMA)
+                    .withDefaultNamespace(identifier.namespace())
+                    .withDefaultCatalog(catalog().name())
+                    .withQuery("spark", "select * from ns.tbl")
+                    .withLocation(locationNotAllowed)
+                    .create())
+        .isInstanceOf(ForbiddenException.class)
+        .hasMessageContaining("Invalid locations");
+
+    // create a view with location not allowed
+    assertThatThrownBy(
+            () ->
+                catalog()
+                    .buildView(viewId2)
+                    .withSchema(SCHEMA)
+                    .withDefaultNamespace(identifier.namespace())
+                    .withDefaultCatalog(catalog().name())
+                    .withQuery("spark", "select * from ns.tbl")
+                    .withProperty(
+                        IcebergTableLikeEntity.USER_SPECIFIED_WRITE_METADATA_LOCATION_KEY,
+                        locationNotAllowed)
+                    .withLocation(locationAllowed)
+                    .create())
+        .isInstanceOf(ForbiddenException.class)
+        .hasMessageContaining("Invalid locations");
   }
 }
