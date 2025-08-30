@@ -197,19 +197,18 @@ public abstract class PolarisRestCatalogViewIntegrationBase extends ViewCatalogT
   }
 
   @Test
-  public void createViewWithCustomMetadataLocationUsingPolaris(@TempDir Path tempDir) {
+  public void testViewWithLocations(@TempDir Path tempDir) {
     TableIdentifier identifier = TableIdentifier.of("ns", "view");
 
-    String location = Paths.get(tempDir.toUri().toString()).toString();
+    String locationNotAllowed = Paths.get(tempDir.toUri().toString()).toString();
     String customLocation =
-        Paths.get(storageConfig.getAllowedLocations().getFirst(), "/custom-location1").toString();
+        Paths.get(storageConfig.getAllowedLocations().getFirst(), "custom-location1").toString();
+    //    Assertions.assertThat(location).isEqualTo(customLocation);
 
     catalog().createNamespace(identifier.namespace());
 
     Assertions.assertThat(catalog().viewExists(identifier)).as("View should not exist").isFalse();
 
-    // CAN create a view with a custom metadata location `baseLocation/customLocation`,
-    // as long as the location is within the parent namespace's `write.metadata.path=baseLocation`
     View view =
         catalog()
             .buildView(identifier)
@@ -219,7 +218,7 @@ public abstract class PolarisRestCatalogViewIntegrationBase extends ViewCatalogT
             .withQuery("spark", "select * from ns.tbl")
             .withProperty(
                 IcebergTableLikeEntity.USER_SPECIFIED_WRITE_METADATA_LOCATION_KEY, customLocation)
-            .withLocation(location)
+            .withLocation(locationNotAllowed)
             .create();
 
     Assertions.assertThat(view).isNotNull();
@@ -228,5 +227,19 @@ public abstract class PolarisRestCatalogViewIntegrationBase extends ViewCatalogT
     Assertions.assertThat(((BaseView) view).operations().current().metadataFileLocation())
         .isNotNull()
         .startsWith(customLocation);
+
+//    var locationNotAllowed = Paths.get(tempDir.toUri().toString()).toString();
+    // Having a location outside of allowed locations are not allowed
+    Assertions.assertThatThrownBy(
+            () ->
+                catalog()
+                    .loadView(identifier)
+                    .updateProperties()
+                    .set(
+                        IcebergTableLikeEntity.USER_SPECIFIED_WRITE_METADATA_LOCATION_KEY,
+                            locationNotAllowed)
+                    .commit())
+        .isInstanceOf(ForbiddenException.class)
+        .hasMessageContaining("Forbidden: Invalid locations");
   }
 }
