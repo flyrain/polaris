@@ -18,7 +18,6 @@
  */
 package org.apache.polaris.service.catalog.iceberg;
 
-import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
 
 import com.google.common.collect.ImmutableMap;
@@ -71,6 +70,7 @@ import org.apache.polaris.service.events.PolarisEventListener;
 import org.apache.polaris.service.events.TestPolarisEventListener;
 import org.apache.polaris.service.storage.PolarisStorageIntegrationProviderImpl;
 import org.apache.polaris.service.test.TestData;
+import org.assertj.core.api.Assertions;
 import org.assertj.core.api.Assumptions;
 import org.assertj.core.configuration.PreferredAssumptionException;
 import org.junit.jupiter.api.AfterEach;
@@ -97,6 +97,8 @@ public abstract class AbstractIcebergCatalogViewTest extends ViewCatalogTests<Ic
           .build();
     }
   }
+
+  public static final String CATALOG_NAME = "polaris-catalog";
 
   public static Map<String, String> VIEW_PREFIXES =
       Map.of(
@@ -144,10 +146,6 @@ public abstract class AbstractIcebergCatalogViewTest extends ViewCatalogTests<Ic
 
   @BeforeEach
   public void before(TestInfo testInfo) {
-    setup(testInfo);
-  }
-
-  private void setup(TestInfo testInfo) {
     storageCredentialCache.invalidateAll();
 
     realmName =
@@ -167,15 +165,6 @@ public abstract class AbstractIcebergCatalogViewTest extends ViewCatalogTests<Ic
             configurationStore);
     realmConfig = polarisContext.getRealmConfig();
 
-    var storageConfig =
-        new FileStorageConfigInfo(
-            StorageConfigInfo.StorageTypeEnum.FILE, List.of("file://", "/", "*"));
-    var catalogBaseLocation = "file://tmp/catalog1";
-    this.catalog = setupCatalog(storageConfig, "catalog1", catalogBaseLocation);
-  }
-
-  private IcebergCatalog setupCatalog(
-      StorageConfigInfo storageConfig, String catalogName, String baseLocation) {
     PrincipalEntity rootPrincipal =
         metaStoreManager.findRootPrincipal(polarisContext).orElseThrow();
     PolarisPrincipal authenticatedRoot = PolarisPrincipal.of(rootPrincipal, Set.of());
@@ -197,29 +186,32 @@ public abstract class AbstractIcebergCatalogViewTest extends ViewCatalogTests<Ic
             securityContext,
             authorizer,
             reservedProperties);
-
     adminService.createCatalog(
         new CreateCatalogRequest(
             new CatalogEntity.Builder()
-                .setName(catalogName)
+                .setName(CATALOG_NAME)
                 .addProperty(
                     FeatureConfiguration.ALLOW_EXTERNAL_TABLE_LOCATION.catalogConfig(), "true")
                 .addProperty(
                     FeatureConfiguration.ALLOW_UNSTRUCTURED_TABLE_LOCATION.catalogConfig(), "true")
                 .addProperty(FeatureConfiguration.DROP_WITH_PURGE_ENABLED.catalogConfig(), "true")
-                .setDefaultBaseLocation(baseLocation)
-                .setStorageConfigurationInfo(realmConfig, storageConfig, baseLocation)
+                .setDefaultBaseLocation("file://tmp")
+                .setStorageConfigurationInfo(
+                    realmConfig,
+                    new FileStorageConfigInfo(
+                        StorageConfigInfo.StorageTypeEnum.FILE, List.of("file://", "/", "*")),
+                    "file://tmp")
                 .build()
                 .asCatalog()));
 
     PolarisPassthroughResolutionView passthroughView =
         new PolarisPassthroughResolutionView(
-            polarisContext, resolutionManifestFactory, securityContext, catalogName);
+            polarisContext, resolutionManifestFactory, securityContext, CATALOG_NAME);
     FileIOFactory fileIOFactory =
         new DefaultFileIOFactory(storageCredentialCache, metaStoreManagerFactory);
 
     testPolarisEventListener = (TestPolarisEventListener) polarisEventListener;
-    var newCatalog =
+    this.catalog =
         new IcebergCatalog(
             diagServices,
             storageCredentialCache,
@@ -236,9 +228,7 @@ public abstract class AbstractIcebergCatalogViewTest extends ViewCatalogTests<Ic
             .put(CatalogProperties.FILE_IO_IMPL, "org.apache.iceberg.inmemory.InMemoryFileIO")
             .putAll(VIEW_PREFIXES)
             .build();
-    newCatalog.initialize(catalogName, properties);
-
-    return newCatalog;
+    this.catalog.initialize(CATALOG_NAME, properties);
   }
 
   @AfterEach
@@ -281,19 +271,19 @@ public abstract class AbstractIcebergCatalogViewTest extends ViewCatalogTests<Ic
     view.updateProperties().set(key, valNew).commit();
 
     var beforeRefreshEvent = testPolarisEventListener.getLatest(BeforeViewRefreshedEvent.class);
-    assertThat(beforeRefreshEvent.viewIdentifier()).isEqualTo(TestData.TABLE);
+    Assertions.assertThat(beforeRefreshEvent.viewIdentifier()).isEqualTo(TestData.TABLE);
 
     var afterRefreshEvent = testPolarisEventListener.getLatest(AfterViewRefreshedEvent.class);
-    assertThat(afterRefreshEvent.viewIdentifier()).isEqualTo(TestData.TABLE);
+    Assertions.assertThat(afterRefreshEvent.viewIdentifier()).isEqualTo(TestData.TABLE);
 
     var beforeCommitEvent = testPolarisEventListener.getLatest(BeforeViewCommitedEvent.class);
-    assertThat(beforeCommitEvent.identifier()).isEqualTo(TestData.TABLE);
-    assertThat(beforeCommitEvent.base().properties().get(key)).isEqualTo(valOld);
-    assertThat(beforeCommitEvent.metadata().properties().get(key)).isEqualTo(valNew);
+    Assertions.assertThat(beforeCommitEvent.identifier()).isEqualTo(TestData.TABLE);
+    Assertions.assertThat(beforeCommitEvent.base().properties().get(key)).isEqualTo(valOld);
+    Assertions.assertThat(beforeCommitEvent.metadata().properties().get(key)).isEqualTo(valNew);
 
     var afterCommitEvent = testPolarisEventListener.getLatest(AfterViewCommitedEvent.class);
-    assertThat(afterCommitEvent.identifier()).isEqualTo(TestData.TABLE);
-    assertThat(afterCommitEvent.base().properties().get(key)).isEqualTo(valOld);
-    assertThat(afterCommitEvent.metadata().properties().get(key)).isEqualTo(valNew);
+    Assertions.assertThat(afterCommitEvent.identifier()).isEqualTo(TestData.TABLE);
+    Assertions.assertThat(afterCommitEvent.base().properties().get(key)).isEqualTo(valOld);
+    Assertions.assertThat(afterCommitEvent.metadata().properties().get(key)).isEqualTo(valNew);
   }
 }
