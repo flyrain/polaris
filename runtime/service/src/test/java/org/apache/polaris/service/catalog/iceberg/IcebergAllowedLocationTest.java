@@ -52,14 +52,24 @@ import org.apache.polaris.core.admin.model.CreateCatalogRequest;
 import org.apache.polaris.core.admin.model.FileStorageConfigInfo;
 import org.apache.polaris.core.admin.model.StorageConfigInfo;
 import org.apache.polaris.service.TestServices;
+import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 public class IcebergAllowedLocationTest {
-  private static final String VIEW_QUERY = "select * from ns.tbl";
-
   private static final String namespace = "ns";
   private static final String catalog = "test-catalog";
+
+  private static final String VIEW_QUERY = "select * from ns.tbl";
+  public static final ImmutableViewVersion VIEW_VERSION =
+      ImmutableViewVersion.builder()
+          .versionId(1)
+          .timestampMillis(System.currentTimeMillis())
+          .schemaId(1)
+          .defaultNamespace(Namespace.of(namespace))
+          .addRepresentations(
+              ImmutableSQLViewRepresentation.builder().sql(VIEW_QUERY).dialect("spark").build())
+          .build();
 
   private String getTableName() {
     return "table_" + UUID.randomUUID();
@@ -145,7 +155,7 @@ public class IcebergAllowedLocationTest {
 
   @Test
   void testViewWithAllowedLocations(@TempDir Path tmpDir) {
-    var viewName = "view";
+    var viewId = TableIdentifier.of(namespace, "view");
     var services = getTestServices();
     var catalogLocation = tmpDir.resolve(catalog).toAbsolutePath().toUri().toString();
     createCatalog(services, Map.of(), catalogLocation, List.of(catalogLocation));
@@ -156,25 +166,8 @@ public class IcebergAllowedLocationTest {
     String customAllowedLocation1 = Paths.get(namespaceLocation, "custom-location1").toString();
     String customAllowedLocation2 = Paths.get(namespaceLocation, "custom-location2").toString();
 
-    var properties = new HashMap<String, String>();
-    properties.put(USER_SPECIFIED_WRITE_METADATA_LOCATION_KEY, customAllowedLocation2);
-    var viewVersion =
-        ImmutableViewVersion.builder()
-            .versionId(1)
-            .timestampMillis(System.currentTimeMillis())
-            .schemaId(1)
-            .defaultNamespace(Namespace.of(namespace))
-            .addRepresentations(
-                ImmutableSQLViewRepresentation.builder().sql(VIEW_QUERY).dialect("spark").build())
-            .build();
     CreateViewRequest createViewRequest =
-        ImmutableCreateViewRequest.builder()
-            .name(viewName)
-            .schema(SCHEMA)
-            .viewVersion(viewVersion)
-            .location(customAllowedLocation1)
-            .properties(properties)
-            .build();
+        getCreateViewRequest(customAllowedLocation2, viewId.name(), customAllowedLocation1);
     var response =
         services
             .restApi()
@@ -195,15 +188,13 @@ public class IcebergAllowedLocationTest {
 
     UpdateTableRequest updateRequest =
         UpdateTableRequest.create(
-            TableIdentifier.of(namespace, viewName),
-            List.of(), // requirements
-            List.of(new MetadataUpdate.SetProperties(updatedProperties)));
+            viewId, List.of(), List.of(new MetadataUpdate.SetProperties(updatedProperties)));
 
     var updateResponse =
         services
             .catalogAdapter()
             .newHandlerWrapper(services.securityContext(), catalog)
-            .replaceView(TableIdentifier.of(namespace, viewName), updateRequest);
+            .replaceView(viewId, updateRequest);
     assertEquals(
         updateResponse.metadata().properties().get(USER_SPECIFIED_WRITE_METADATA_LOCATION_KEY),
         customAllowedLocation3);
@@ -211,6 +202,7 @@ public class IcebergAllowedLocationTest {
 
   @Test
   void testViewOutsideAllowedLocations(@TempDir Path tmpDir) {
+    var viewId = TableIdentifier.of(namespace, "view");
     var services = getTestServices();
 
     var catalogBaseLocation = tmpDir.resolve(catalog).toAbsolutePath().toUri().toString();
@@ -224,21 +216,12 @@ public class IcebergAllowedLocationTest {
 
     // Test 1: Create a view with allowed location, and update it with a location not allowed
     var properties = new HashMap<String, String>();
-    var viewVersion =
-        ImmutableViewVersion.builder()
-            .versionId(1)
-            .timestampMillis(System.currentTimeMillis())
-            .schemaId(1)
-            .defaultNamespace(Namespace.of(namespace))
-            .addRepresentations(
-                ImmutableSQLViewRepresentation.builder().sql(VIEW_QUERY).dialect("spark").build())
-            .build();
 
     CreateViewRequest createViewRequest =
         ImmutableCreateViewRequest.builder()
-            .name("view")
+            .name(viewId.name())
             .schema(SCHEMA)
-            .viewVersion(viewVersion)
+            .viewVersion(VIEW_VERSION)
             .location(locationAllowed)
             .properties(properties)
             .build();
@@ -257,9 +240,9 @@ public class IcebergAllowedLocationTest {
     Map<String, String> updatedProperties = new HashMap<>();
     updatedProperties.put(USER_SPECIFIED_WRITE_METADATA_LOCATION_KEY, locationNotAllowed);
 
-    UpdateTableRequest updateRequest =
+    var updateRequest =
         UpdateTableRequest.create(
-            TableIdentifier.of(namespace, "view"),
+            viewId,
             List.of(), // requirements
             List.of(new MetadataUpdate.SetProperties(updatedProperties)));
 
@@ -268,20 +251,11 @@ public class IcebergAllowedLocationTest {
             services
                 .catalogAdapter()
                 .newHandlerWrapper(services.securityContext(), catalog)
-                .replaceView(TableIdentifier.of(namespace, "view"), updateRequest));
+                .replaceView(viewId, updateRequest));
 
     // Test 2: Try to create a view with location not allowed
-    var properties2 = new HashMap<String, String>();
-    properties2.put(USER_SPECIFIED_WRITE_METADATA_LOCATION_KEY, locationNotAllowed);
-
-    CreateViewRequest createViewRequestNotAllowed =
-        ImmutableCreateViewRequest.builder()
-            .name("view2")
-            .schema(SCHEMA)
-            .viewVersion(viewVersion)
-            .location(locationNotAllowed)
-            .properties(properties2)
-            .build();
+    var createViewRequestNotAllowed =
+        getCreateViewRequest(locationNotAllowed, "view2", locationNotAllowed);
 
     assertThatThrownBy(
             () ->
@@ -297,17 +271,8 @@ public class IcebergAllowedLocationTest {
         .hasMessageContaining("Invalid locations");
 
     // Test 3: Try to create a view with metadata location not allowed
-    var properties3 = new HashMap<String, String>();
-    properties3.put(USER_SPECIFIED_WRITE_METADATA_LOCATION_KEY, locationNotAllowed);
-
-    CreateViewRequest createViewRequestMetadataNotAllowed =
-        ImmutableCreateViewRequest.builder()
-            .name("view3")
-            .schema(SCHEMA)
-            .viewVersion(viewVersion)
-            .location(locationAllowed)
-            .properties(properties3)
-            .build();
+    var createViewRequestMetadataNotAllowed =
+        getCreateViewRequest(locationNotAllowed, "view3", locationAllowed);
 
     assertThatThrownBy(
             () ->
@@ -321,6 +286,19 @@ public class IcebergAllowedLocationTest {
                         services.securityContext()))
         .isInstanceOf(ForbiddenException.class)
         .hasMessageContaining("Invalid locations");
+  }
+
+  private static @NotNull CreateViewRequest getCreateViewRequest(
+      String writeMetadataPath, String viewName, String location) {
+    var properties = new HashMap<String, String>();
+    properties.put(USER_SPECIFIED_WRITE_METADATA_LOCATION_KEY, writeMetadataPath);
+    return ImmutableCreateViewRequest.builder()
+        .name(viewName)
+        .schema(SCHEMA)
+        .viewVersion(VIEW_VERSION)
+        .location(location)
+        .properties(properties)
+        .build();
   }
 
   private void createCatalog(
@@ -361,9 +339,7 @@ public class IcebergAllowedLocationTest {
 
   private void createNamespace(TestServices services, String location) {
     Map<String, String> properties = new HashMap<>();
-    if (location != null) {
-      properties.put("location", location);
-    }
+    properties.put("location", location);
     CreateNamespaceRequest createNamespaceRequest =
         CreateNamespaceRequest.builder()
             .withNamespace(Namespace.of(namespace))
