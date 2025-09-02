@@ -104,8 +104,6 @@ public abstract class AbstractIcebergCatalogViewTest extends ViewCatalogTests<Ic
     }
   }
 
-  public static final String CATALOG_NAME = "polaris-catalog";
-
   public static Map<String, String> VIEW_PREFIXES =
       Map.of(
           CatalogProperties.VIEW_DEFAULT_PREFIX + "key1", "catalog-default-key1",
@@ -124,13 +122,13 @@ public abstract class AbstractIcebergCatalogViewTest extends ViewCatalogTests<Ic
   @Inject ResolutionManifestFactory resolutionManifestFactory;
 
   private IcebergCatalog catalog;
+  private IcebergCatalog catalog2;
 
   private String realmName;
   private PolarisMetaStoreManager metaStoreManager;
   private UserSecretsManager userSecretsManager;
   private PolarisCallContext polarisContext;
   private RealmConfig realmConfig;
-  private StorageConfigInfo storageConfig;
 
   private TestPolarisEventListener testPolarisEventListener;
 
@@ -153,6 +151,10 @@ public abstract class AbstractIcebergCatalogViewTest extends ViewCatalogTests<Ic
 
   @BeforeEach
   public void before(TestInfo testInfo) {
+    setup(testInfo);
+  }
+
+  private void setup(TestInfo testInfo) {
     storageCredentialCache.invalidateAll();
 
     realmName =
@@ -172,6 +174,15 @@ public abstract class AbstractIcebergCatalogViewTest extends ViewCatalogTests<Ic
             configurationStore);
     realmConfig = polarisContext.getRealmConfig();
 
+    var storageConfig =
+        new FileStorageConfigInfo(
+            StorageConfigInfo.StorageTypeEnum.FILE, List.of("file://", "/", "*"));
+    var catalogBaseLocation = "file://tmp/catalog1";
+    this.catalog = setupCatalog(storageConfig, "catalog1", catalogBaseLocation);
+  }
+
+  private IcebergCatalog setupCatalog(
+      StorageConfigInfo storageConfig, String catalogName, String baseLocation) {
     PrincipalEntity rootPrincipal =
         metaStoreManager.findRootPrincipal(polarisContext).orElseThrow();
     PolarisPrincipal authenticatedRoot = PolarisPrincipal.of(rootPrincipal, Set.of());
@@ -193,32 +204,29 @@ public abstract class AbstractIcebergCatalogViewTest extends ViewCatalogTests<Ic
             securityContext,
             authorizer,
             reservedProperties);
-    storageConfig =
-        new FileStorageConfigInfo(
-            //            StorageConfigInfo.StorageTypeEnum.FILE, List.of("file://", "/", "*"));
-            StorageConfigInfo.StorageTypeEnum.FILE, List.of("file://tmp"));
+
     adminService.createCatalog(
         new CreateCatalogRequest(
             new CatalogEntity.Builder()
-                .setName(CATALOG_NAME)
+                .setName(catalogName)
                 .addProperty(
                     FeatureConfiguration.ALLOW_EXTERNAL_TABLE_LOCATION.catalogConfig(), "true")
                 .addProperty(
                     FeatureConfiguration.ALLOW_UNSTRUCTURED_TABLE_LOCATION.catalogConfig(), "true")
                 .addProperty(FeatureConfiguration.DROP_WITH_PURGE_ENABLED.catalogConfig(), "true")
-                .setDefaultBaseLocation("file://tmp")
-                .setStorageConfigurationInfo(realmConfig, storageConfig, "file://tmp")
+                .setDefaultBaseLocation(baseLocation)
+                .setStorageConfigurationInfo(realmConfig, storageConfig, baseLocation)
                 .build()
                 .asCatalog()));
 
     PolarisPassthroughResolutionView passthroughView =
         new PolarisPassthroughResolutionView(
-            polarisContext, resolutionManifestFactory, securityContext, CATALOG_NAME);
+            polarisContext, resolutionManifestFactory, securityContext, catalogName);
     FileIOFactory fileIOFactory =
         new DefaultFileIOFactory(storageCredentialCache, metaStoreManagerFactory);
 
     testPolarisEventListener = (TestPolarisEventListener) polarisEventListener;
-    this.catalog =
+    var newCatalog =
         new IcebergCatalog(
             diagServices,
             storageCredentialCache,
@@ -235,7 +243,9 @@ public abstract class AbstractIcebergCatalogViewTest extends ViewCatalogTests<Ic
             .put(CatalogProperties.FILE_IO_IMPL, "org.apache.iceberg.inmemory.InMemoryFileIO")
             .putAll(VIEW_PREFIXES)
             .build();
-    this.catalog.initialize(CATALOG_NAME, properties);
+    newCatalog.initialize(catalogName, properties);
+
+    return newCatalog;
   }
 
   @AfterEach
@@ -295,10 +305,16 @@ public abstract class AbstractIcebergCatalogViewTest extends ViewCatalogTests<Ic
   }
 
   @Test
-  void testViewWithAllowedLocations(@TempDir Path tmpDir) {
+  void testViewWithAllowedLocations() {
+    var catalogBaseLocation = "file://tmp/catalog2";
+    var storageConfig =
+        new FileStorageConfigInfo(
+            StorageConfigInfo.StorageTypeEnum.FILE, List.of(catalogBaseLocation));
+    var catalogName = "catalog2";
+    var catalog = setupCatalog(storageConfig, catalogName, catalogBaseLocation);
     TableIdentifier identifier = TableIdentifier.of("ns", "view");
-    catalog().createNamespace(identifier.namespace());
-    assertThat(catalog().viewExists(identifier)).as("View should not exist").isFalse();
+    catalog.createNamespace(identifier.namespace());
+    assertThat(catalog.viewExists(identifier)).as("View should not exist").isFalse();
 
     // create a view with allowed locations
     String customAllowedLocation1 =
@@ -306,11 +322,11 @@ public abstract class AbstractIcebergCatalogViewTest extends ViewCatalogTests<Ic
     String customAllowedLocation2 =
         Paths.get(storageConfig.getAllowedLocations().getFirst(), "custom-location2").toString();
     View view =
-        catalog()
+        catalog
             .buildView(identifier)
             .withSchema(SCHEMA)
             .withDefaultNamespace(identifier.namespace())
-            .withDefaultCatalog(catalog().name())
+            .withDefaultCatalog(catalogName)
             .withQuery("spark", "select * from ns.tbl")
             .withProperty(
                 IcebergTableLikeEntity.USER_SPECIFIED_WRITE_METADATA_LOCATION_KEY,
@@ -318,7 +334,7 @@ public abstract class AbstractIcebergCatalogViewTest extends ViewCatalogTests<Ic
             .withLocation(customAllowedLocation2)
             .create();
 
-    assertThat(catalog().viewExists(identifier)).as("View should exist").isTrue();
+    assertThat(catalog.viewExists(identifier)).as("View should exist").isTrue();
     assertThat(view.properties()).containsEntry("write.metadata.path", customAllowedLocation1);
     assertThat(((BaseView) view).operations().current().metadataFileLocation())
         .isNotNull()
@@ -327,40 +343,46 @@ public abstract class AbstractIcebergCatalogViewTest extends ViewCatalogTests<Ic
     // update the view with allowed locations
     String customAllowedLocation3 =
         Paths.get(storageConfig.getAllowedLocations().getFirst(), "custom-location3").toString();
-    catalog()
+    catalog
         .loadView(identifier)
         .updateProperties()
         .set(
             IcebergTableLikeEntity.USER_SPECIFIED_WRITE_METADATA_LOCATION_KEY,
             customAllowedLocation3)
         .commit();
-    assertThat(catalog().loadView(identifier).properties())
+    assertThat(catalog.loadView(identifier).properties())
         .containsEntry("write.metadata.path", customAllowedLocation3);
   }
 
   @Test
   void testCreateTableOutsideCatalogAllowedLocations(@TempDir Path tmpDir) {
+    var catalogBaseLocation = "file://tmp/catalog2";
+    var storageConfig =
+        new FileStorageConfigInfo(
+            StorageConfigInfo.StorageTypeEnum.FILE, List.of(catalogBaseLocation));
+    var catalogName = "catalog2";
+    var catalog = setupCatalog(storageConfig, catalogName, catalogBaseLocation);
     var locationNotAllowed = Paths.get(tmpDir.toUri().toString()).toString();
     var locationAllowed =
         Paths.get(storageConfig.getAllowedLocations().getFirst(), "custom-location").toString();
 
     TableIdentifier identifier = TableIdentifier.of("ns", "view");
-    catalog().createNamespace(identifier.namespace());
-    assertThat(catalog().viewExists(identifier)).as("View should not exist").isFalse();
+    catalog.createNamespace(identifier.namespace());
+    assertThat(catalog.viewExists(identifier)).as("View should not exist").isFalse();
 
     // update a view with location not allowed
-    catalog()
+    catalog
         .buildView(identifier)
         .withSchema(SCHEMA)
         .withDefaultNamespace(identifier.namespace())
-        .withDefaultCatalog(catalog().name())
+        .withDefaultCatalog(catalogName)
         .withQuery("spark", "select * from ns.tbl")
         .withLocation(locationAllowed)
         .create();
 
     assertThatThrownBy(
             () ->
-                catalog()
+                catalog
                     .loadView(identifier)
                     .updateProperties()
                     .set(
@@ -374,11 +396,11 @@ public abstract class AbstractIcebergCatalogViewTest extends ViewCatalogTests<Ic
     var viewId2 = TableIdentifier.of("ns", "view2");
     assertThatThrownBy(
             () ->
-                catalog()
+                catalog
                     .buildView(viewId2)
                     .withSchema(SCHEMA)
                     .withDefaultNamespace(identifier.namespace())
-                    .withDefaultCatalog(catalog().name())
+                    .withDefaultCatalog(catalogName)
                     .withQuery("spark", "select * from ns.tbl")
                     .withLocation(locationNotAllowed)
                     .create())
@@ -388,11 +410,11 @@ public abstract class AbstractIcebergCatalogViewTest extends ViewCatalogTests<Ic
     // create a view with location not allowed
     assertThatThrownBy(
             () ->
-                catalog()
+                catalog
                     .buildView(viewId2)
                     .withSchema(SCHEMA)
                     .withDefaultNamespace(identifier.namespace())
-                    .withDefaultCatalog(catalog().name())
+                    .withDefaultCatalog(catalogName)
                     .withQuery("spark", "select * from ns.tbl")
                     .withProperty(
                         IcebergTableLikeEntity.USER_SPECIFIED_WRITE_METADATA_LOCATION_KEY,

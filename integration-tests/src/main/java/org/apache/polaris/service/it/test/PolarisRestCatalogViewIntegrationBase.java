@@ -198,11 +198,12 @@ public abstract class PolarisRestCatalogViewIntegrationBase extends ViewCatalogT
 
   @Test
   public void testViewWithLocations(@TempDir Path tempDir) {
-    TableIdentifier identifier = TableIdentifier.of("ns", "view");
+    TableIdentifier identifier = TableIdentifier.of("ns", "view1");
 
-    String locationNotAllowed = Paths.get(tempDir.toUri().toString()).toString();
-    String customLocation =
-        Paths.get(storageConfig.getAllowedLocations().getFirst(), "custom-location1").toString();
+    String allowedLocation1 =
+        Paths.get(storageConfig.getAllowedLocations().getFirst(), "allowed-location1").toString();
+    String allowedLocation2 =
+        Paths.get(storageConfig.getAllowedLocations().getFirst(), "allowed-location2").toString();
 
     catalog().createNamespace(identifier.namespace());
 
@@ -216,18 +217,19 @@ public abstract class PolarisRestCatalogViewIntegrationBase extends ViewCatalogT
             .withDefaultCatalog(catalog().name())
             .withQuery("spark", "select * from ns.tbl")
             .withProperty(
-                IcebergTableLikeEntity.USER_SPECIFIED_WRITE_METADATA_LOCATION_KEY, customLocation)
-            .withLocation(locationNotAllowed)
+                IcebergTableLikeEntity.USER_SPECIFIED_WRITE_METADATA_LOCATION_KEY, allowedLocation1)
+            .withLocation(allowedLocation2)
             .create();
 
     Assertions.assertThat(view).isNotNull();
     Assertions.assertThat(catalog().viewExists(identifier)).as("View should exist").isTrue();
-    Assertions.assertThat(view.properties()).containsEntry("write.metadata.path", customLocation);
+    Assertions.assertThat(view.properties()).containsEntry("write.metadata.path", allowedLocation1);
     Assertions.assertThat(((BaseView) view).operations().current().metadataFileLocation())
         .isNotNull()
-        .startsWith(customLocation);
+        .startsWith(allowedLocation1);
 
     // Having a location outside allowed locations are not allowed
+    String locationNotAllowed = Paths.get(tempDir.toUri().toString()).toString();
     Assertions.assertThatThrownBy(
             () ->
                 catalog()
@@ -237,6 +239,19 @@ public abstract class PolarisRestCatalogViewIntegrationBase extends ViewCatalogT
                         IcebergTableLikeEntity.USER_SPECIFIED_WRITE_METADATA_LOCATION_KEY,
                         locationNotAllowed)
                     .commit())
+        .isInstanceOf(ForbiddenException.class)
+        .hasMessageContaining("Forbidden: Invalid locations");
+
+    Assertions.assertThatThrownBy(
+            () ->
+                catalog()
+                    .buildView(TableIdentifier.of("ns", "view2"))
+                    .withSchema(SCHEMA)
+                    .withDefaultNamespace(identifier.namespace())
+                    .withDefaultCatalog(catalog().name())
+                    .withQuery("spark", "select * from ns.tbl")
+                    .withLocation(locationNotAllowed)
+                    .create())
         .isInstanceOf(ForbiddenException.class)
         .hasMessageContaining("Forbidden: Invalid locations");
   }

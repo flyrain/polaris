@@ -24,6 +24,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Joiner;
 import com.google.common.base.Objects;
 import com.google.common.base.Preconditions;
+import com.google.common.base.Strings;
 import com.google.common.base.Throwables;
 import com.google.common.collect.ImmutableMap;
 import jakarta.annotation.Nonnull;
@@ -1234,7 +1235,11 @@ public class IcebergCatalog extends BaseMetastoreViewCatalog
 
     @Override
     public ViewBuilder withLocation(String newLocation) {
-      return super.withLocation(transformTableLikeLocation(identifier, newLocation));
+      if (Strings.isNullOrEmpty(newLocation)) {
+        return super.withLocation(transformTableLikeLocation(identifier, newLocation));
+      } else {
+        return super.withLocation(newLocation);
+      }
     }
   }
 
