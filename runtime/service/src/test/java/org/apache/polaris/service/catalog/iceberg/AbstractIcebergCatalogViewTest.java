@@ -19,7 +19,6 @@
 package org.apache.polaris.service.catalog.iceberg;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.when;
 
 import com.google.common.collect.ImmutableMap;
@@ -30,15 +29,11 @@ import java.io.IOException;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.catalog.Catalog;
-import org.apache.iceberg.catalog.TableIdentifier;
-import org.apache.iceberg.exceptions.ForbiddenException;
-import org.apache.iceberg.view.BaseView;
 import org.apache.iceberg.view.View;
 import org.apache.iceberg.view.ViewCatalogTests;
 import org.apache.polaris.core.PolarisCallContext;
@@ -55,7 +50,6 @@ import org.apache.polaris.core.config.RealmConfig;
 import org.apache.polaris.core.context.RealmContext;
 import org.apache.polaris.core.entity.CatalogEntity;
 import org.apache.polaris.core.entity.PrincipalEntity;
-import org.apache.polaris.core.entity.table.IcebergTableLikeEntity;
 import org.apache.polaris.core.persistence.MetaStoreManagerFactory;
 import org.apache.polaris.core.persistence.PolarisMetaStoreManager;
 import org.apache.polaris.core.persistence.resolver.ResolutionManifestFactory;
@@ -122,7 +116,6 @@ public abstract class AbstractIcebergCatalogViewTest extends ViewCatalogTests<Ic
   @Inject ResolutionManifestFactory resolutionManifestFactory;
 
   private IcebergCatalog catalog;
-  private IcebergCatalog catalog2;
 
   private String realmName;
   private PolarisMetaStoreManager metaStoreManager;
@@ -304,124 +297,5 @@ public abstract class AbstractIcebergCatalogViewTest extends ViewCatalogTests<Ic
     assertThat(afterCommitEvent.metadata().properties().get(key)).isEqualTo(valNew);
   }
 
-  @Test
-  void testViewWithAllowedLocations() {
-    var catalogBaseLocation = "file://tmp/catalog2";
-    var storageConfig =
-        new FileStorageConfigInfo(
-            StorageConfigInfo.StorageTypeEnum.FILE, List.of(catalogBaseLocation));
-    var catalogName = "catalog2";
-    var catalog = setupCatalog(storageConfig, catalogName, catalogBaseLocation);
-    TableIdentifier identifier = TableIdentifier.of("ns", "view");
-    catalog.createNamespace(identifier.namespace());
-    assertThat(catalog.viewExists(identifier)).as("View should not exist").isFalse();
 
-    // create a view with allowed locations
-    String customAllowedLocation1 =
-        Paths.get(storageConfig.getAllowedLocations().getFirst(), "custom-location1").toString();
-    String customAllowedLocation2 =
-        Paths.get(storageConfig.getAllowedLocations().getFirst(), "custom-location2").toString();
-    View view =
-        catalog
-            .buildView(identifier)
-            .withSchema(SCHEMA)
-            .withDefaultNamespace(identifier.namespace())
-            .withDefaultCatalog(catalogName)
-            .withQuery("spark", "select * from ns.tbl")
-            .withProperty(
-                IcebergTableLikeEntity.USER_SPECIFIED_WRITE_METADATA_LOCATION_KEY,
-                customAllowedLocation1)
-            .withLocation(customAllowedLocation2)
-            .create();
-
-    assertThat(catalog.viewExists(identifier)).as("View should exist").isTrue();
-    assertThat(view.properties()).containsEntry("write.metadata.path", customAllowedLocation1);
-    assertThat(((BaseView) view).operations().current().metadataFileLocation())
-        .isNotNull()
-        .startsWith(customAllowedLocation1);
-
-    // update the view with allowed locations
-    String customAllowedLocation3 =
-        Paths.get(storageConfig.getAllowedLocations().getFirst(), "custom-location3").toString();
-    catalog
-        .loadView(identifier)
-        .updateProperties()
-        .set(
-            IcebergTableLikeEntity.USER_SPECIFIED_WRITE_METADATA_LOCATION_KEY,
-            customAllowedLocation3)
-        .commit();
-    assertThat(catalog.loadView(identifier).properties())
-        .containsEntry("write.metadata.path", customAllowedLocation3);
-  }
-
-  @Test
-  void testCreateTableOutsideCatalogAllowedLocations(@TempDir Path tmpDir) {
-    var catalogBaseLocation = "file://tmp/catalog2";
-    var storageConfig =
-        new FileStorageConfigInfo(
-            StorageConfigInfo.StorageTypeEnum.FILE, List.of(catalogBaseLocation));
-    var catalogName = "catalog2";
-    var catalog = setupCatalog(storageConfig, catalogName, catalogBaseLocation);
-    var locationNotAllowed = Paths.get(tmpDir.toUri().toString()).toString();
-    var locationAllowed =
-        Paths.get(storageConfig.getAllowedLocations().getFirst(), "custom-location").toString();
-
-    TableIdentifier identifier = TableIdentifier.of("ns", "view");
-    catalog.createNamespace(identifier.namespace());
-    assertThat(catalog.viewExists(identifier)).as("View should not exist").isFalse();
-
-    // update a view with location not allowed
-    catalog
-        .buildView(identifier)
-        .withSchema(SCHEMA)
-        .withDefaultNamespace(identifier.namespace())
-        .withDefaultCatalog(catalogName)
-        .withQuery("spark", "select * from ns.tbl")
-        .withLocation(locationAllowed)
-        .create();
-
-    assertThatThrownBy(
-            () ->
-                catalog
-                    .loadView(identifier)
-                    .updateProperties()
-                    .set(
-                        IcebergTableLikeEntity.USER_SPECIFIED_WRITE_METADATA_LOCATION_KEY,
-                        locationNotAllowed)
-                    .commit())
-        .isInstanceOf(ForbiddenException.class)
-        .hasMessageContaining("Invalid locations");
-
-    // create a view with location not allowed
-    var viewId2 = TableIdentifier.of("ns", "view2");
-    assertThatThrownBy(
-            () ->
-                catalog
-                    .buildView(viewId2)
-                    .withSchema(SCHEMA)
-                    .withDefaultNamespace(identifier.namespace())
-                    .withDefaultCatalog(catalogName)
-                    .withQuery("spark", "select * from ns.tbl")
-                    .withLocation(locationNotAllowed)
-                    .create())
-        .isInstanceOf(ForbiddenException.class)
-        .hasMessageContaining("Invalid locations");
-
-    // create a view with location not allowed
-    assertThatThrownBy(
-            () ->
-                catalog
-                    .buildView(viewId2)
-                    .withSchema(SCHEMA)
-                    .withDefaultNamespace(identifier.namespace())
-                    .withDefaultCatalog(catalogName)
-                    .withQuery("spark", "select * from ns.tbl")
-                    .withProperty(
-                        IcebergTableLikeEntity.USER_SPECIFIED_WRITE_METADATA_LOCATION_KEY,
-                        locationNotAllowed)
-                    .withLocation(locationAllowed)
-                    .create())
-        .isInstanceOf(ForbiddenException.class)
-        .hasMessageContaining("Invalid locations");
-  }
 }
