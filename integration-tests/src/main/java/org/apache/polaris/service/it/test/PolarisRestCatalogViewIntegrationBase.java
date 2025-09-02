@@ -203,7 +203,6 @@ public abstract class PolarisRestCatalogViewIntegrationBase extends ViewCatalogT
     String locationNotAllowed = Paths.get(tempDir.toUri().toString()).toString();
     String customLocation =
         Paths.get(storageConfig.getAllowedLocations().getFirst(), "custom-location1").toString();
-    //    Assertions.assertThat(location).isEqualTo(customLocation);
 
     catalog().createNamespace(identifier.namespace());
 
@@ -228,8 +227,7 @@ public abstract class PolarisRestCatalogViewIntegrationBase extends ViewCatalogT
         .isNotNull()
         .startsWith(customLocation);
 
-//    var locationNotAllowed = Paths.get(tempDir.toUri().toString()).toString();
-    // Having a location outside of allowed locations are not allowed
+    // Having a location outside allowed locations are not allowed
     Assertions.assertThatThrownBy(
             () ->
                 catalog()
@@ -237,7 +235,7 @@ public abstract class PolarisRestCatalogViewIntegrationBase extends ViewCatalogT
                     .updateProperties()
                     .set(
                         IcebergTableLikeEntity.USER_SPECIFIED_WRITE_METADATA_LOCATION_KEY,
-                            locationNotAllowed)
+                        locationNotAllowed)
                     .commit())
         .isInstanceOf(ForbiddenException.class)
         .hasMessageContaining("Forbidden: Invalid locations");
