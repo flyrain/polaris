@@ -258,17 +258,17 @@ public class IcebergAllowedLocationTest {
     updatedProperties.put(USER_SPECIFIED_WRITE_METADATA_LOCATION_KEY, locationNotAllowed);
 
     UpdateTableRequest updateRequest =
-            UpdateTableRequest.create(
-                    TableIdentifier.of(namespace, "view"),
-                    List.of(), // requirements
-                    List.of(new MetadataUpdate.SetProperties(updatedProperties)));
+        UpdateTableRequest.create(
+            TableIdentifier.of(namespace, "view"),
+            List.of(), // requirements
+            List.of(new MetadataUpdate.SetProperties(updatedProperties)));
 
     assertThatThrownBy(
-            () ->
+        () ->
             services
-                    .catalogAdapter()
-                    .newHandlerWrapper(services.securityContext(), catalog)
-                    .replaceView(TableIdentifier.of(namespace, "view"), updateRequest));
+                .catalogAdapter()
+                .newHandlerWrapper(services.securityContext(), catalog)
+                .replaceView(TableIdentifier.of(namespace, "view"), updateRequest));
 
     // Test 2: Try to create a view with location not allowed
     var properties2 = new HashMap<String, String>();
