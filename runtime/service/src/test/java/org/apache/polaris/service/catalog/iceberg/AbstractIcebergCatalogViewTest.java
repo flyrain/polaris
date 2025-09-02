@@ -296,6 +296,4 @@ public abstract class AbstractIcebergCatalogViewTest extends ViewCatalogTests<Ic
     assertThat(afterCommitEvent.base().properties().get(key)).isEqualTo(valOld);
     assertThat(afterCommitEvent.metadata().properties().get(key)).isEqualTo(valNew);
   }
-
-
 }
