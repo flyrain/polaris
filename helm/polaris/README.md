@@ -84,6 +84,20 @@ Below are two sample deployment models for installing the chart: one with a non-
 > **These files are intended for testing purposes primarily, and may not be suitable for production use**.
 > For production deployments, create your own values files based on the provided examples.
 
+#### Installing from the Apache Helm repository
+
+Released charts are published in the Apache-hosted Helm repository listed on the [Downloads](/downloads/) page.
+Add the repository and install the chart with:
+
+```bash
+helm repo add apache-polaris https://downloads.apache.org/incubator/polaris/helm-chart
+helm repo update
+helm upgrade --install --namespace polaris \
+  polaris apache-polaris/polaris
+```
+
+You can pass the same `--values` files as you would when referencing the local chart.
+
 #### Non-persistent backend
 
 Install the chart with a non-persistent backend. From Polaris repo root:
