@@ -55,7 +55,6 @@ dependencies {
     api(project(":polaris-admin"))
     api(project(":polaris-runtime-common"))
     api(project(":polaris-runtime-test-common"))
-    api(project(":polaris-runtime-defaults"))
     api(project(":polaris-server"))
     api(project(":polaris-runtime-service"))
     api(project(":polaris-runtime-spark-tests"))

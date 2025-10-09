@@ -54,7 +54,6 @@ Apache Polaris is organized into the following modules:
   - `polaris-api-catalog-service` - The Polaris Catalog API service classes
   - Runtime modules:
       - [`polaris-admin`](./runtime/admin/README.md) - The Polaris Admin Tool; mainly for bootstrapping persistence
-      - [`polaris-runtime-defaults`](./runtime/defaults/README.md) - The runtime configuration defaults
       - [`polaris-distribution`](./runtime/distribution/README.md) - The Polaris distribution
       - [`polaris-server`](./runtime/server/README.md) - The Polaris Quarkus Server
       - [`polaris-runtime-service`](./runtime/service/README.md) - The package containing the Polaris service.
