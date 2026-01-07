@@ -18,11 +18,6 @@
  */
 package org.apache.polaris.service.task;
 
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.util.Base64;
-import org.apache.iceberg.ManifestFile;
-import org.apache.iceberg.ManifestFiles;
 import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.io.FileIO;
 
@@ -38,29 +33,6 @@ public class TaskUtils {
       // typically, clients will catch a 404 and simply return false, so any other exception
       // means something probably went wrong
       throw new RuntimeException(e);
-    }
-  }
-
-  /**
-   * base64 encode the serialized manifest file entry so we can deserialize it and read the manifest
-   * in the {@link ManifestFileCleanupTaskHandler}
-   */
-  public static String encodeManifestFile(ManifestFile mf) {
-    try {
-      byte[] encodedBytes = ManifestFiles.encode(mf);
-      return new String(Base64.getEncoder().encode(encodedBytes), StandardCharsets.UTF_8);
-    } catch (IOException e) {
-      throw new RuntimeException("Unable to encode binary data in memory", e);
-    }
-  }
-
-  public static ManifestFile decodeManifestFileData(String manifestFileData) {
-    try {
-      byte[] decodedBytes =
-          Base64.getDecoder().decode(manifestFileData.getBytes(StandardCharsets.UTF_8));
-      return ManifestFiles.decode(decodedBytes);
-    } catch (IOException e) {
-      throw new RuntimeException("Unable to decode base64 encoded manifest", e);
     }
   }
 }
