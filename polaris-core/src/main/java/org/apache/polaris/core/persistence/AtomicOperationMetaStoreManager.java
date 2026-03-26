@@ -585,10 +585,10 @@ public class AtomicOperationMetaStoreManager extends BaseMetaStoreManager {
     // now looking the entity by name
     // TODO: Clean up shared logic for catalogId/parentId
     long catalogId =
-        catalogPath == null || catalogPath.size() == 0 ? 0l : catalogPath.get(0).getId();
+        catalogPath == null || catalogPath.isEmpty() ? 0L : catalogPath.get(0).getId();
     long parentId =
-        catalogPath == null || catalogPath.size() == 0
-            ? 0l
+        catalogPath == null || catalogPath.isEmpty()
+            ? 0L
             : catalogPath.get(catalogPath.size() - 1).getId();
     PolarisBaseEntity entity =
         ms.lookupEntityByName(callCtx, catalogId, parentId, entityType.getCode(), name);
@@ -1022,10 +1022,10 @@ public class AtomicOperationMetaStoreManager extends BaseMetaStoreManager {
     // ensure that nothing exists where we create that entity
     // if this entity already exists, this is an error
     long catalogId =
-        newCatalogPath == null || newCatalogPath.size() == 0 ? 0l : newCatalogPath.get(0).getId();
+        newCatalogPath == null || newCatalogPath.isEmpty() ? 0L : newCatalogPath.get(0).getId();
     long parentId =
-        newCatalogPath == null || newCatalogPath.size() == 0
-            ? 0l
+        newCatalogPath == null || newCatalogPath.isEmpty()
+            ? 0L
             : newCatalogPath.get(newCatalogPath.size() - 1).getId();
     EntityNameLookupRecord entityActiveRecord =
         ms.lookupEntityIdAndSubTypeByName(
