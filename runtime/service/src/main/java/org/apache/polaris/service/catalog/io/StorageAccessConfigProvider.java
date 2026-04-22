@@ -24,6 +24,7 @@ import io.opentelemetry.api.trace.SpanContext;
 import jakarta.annotation.Nonnull;
 import jakarta.enterprise.context.RequestScoped;
 import jakarta.inject.Inject;
+import java.net.URI;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -34,11 +35,15 @@ import org.apache.polaris.core.auth.PolarisPrincipal;
 import org.apache.polaris.core.config.FeatureConfiguration;
 import org.apache.polaris.core.context.RealmContext;
 import org.apache.polaris.core.entity.PolarisEntity;
+import org.apache.polaris.core.entity.PolarisEntityConstants;
 import org.apache.polaris.core.persistence.PolarisResolvedPathWrapper;
 import org.apache.polaris.core.storage.CredentialVendingContext;
 import org.apache.polaris.core.storage.PolarisStorageActions;
+import org.apache.polaris.core.storage.PolarisStorageConfigurationInfo;
 import org.apache.polaris.core.storage.StorageAccessConfig;
+import org.apache.polaris.core.storage.StorageAccessProperty;
 import org.apache.polaris.core.storage.StorageCredentialsVendor;
+import org.apache.polaris.core.storage.aws.AwsStorageConfigurationInfo;
 import org.apache.polaris.core.storage.cache.StorageCredentialCache;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -114,7 +119,7 @@ public class StorageAccessConfigProvider {
           .atDebug()
           .addKeyValue("tableIdentifier", tableIdentifier)
           .log("Skipping generation of subscoped creds for table");
-      return StorageAccessConfig.builder().build();
+      return buildSkipSubscopingAccessConfig(storageInfoEntity);
     }
 
     boolean allowList =
@@ -152,6 +157,44 @@ public class StorageAccessConfigProvider {
       LOGGER.debug("No credentials found for table");
     }
     return accessConfig;
+  }
+
+  /**
+   * Builds a {@link StorageAccessConfig} for the sub-scoping skip path.
+   *
+   * <p>Credentials, region, and the refresh-credentials endpoint are intentionally omitted — the
+   * client is expected to supply its own static credentials. However, endpoint routing properties
+   * (custom S3 endpoint, path-style access) must be preserved so that clients do not silently fall
+   * back to AWS defaults when pointed at an S3-compatible backend (e.g. MinIO, Ceph RGW,
+   * FlashBlade). For a vanilla AWS catalog (no custom endpoint, no path-style override) these
+   * conditions are all false and the returned config is empty, matching the prior behavior.
+   */
+  private StorageAccessConfig buildSkipSubscopingAccessConfig(PolarisEntity storageInfoEntity) {
+    StorageAccessConfig.Builder builder = StorageAccessConfig.builder();
+    String configStr =
+        storageInfoEntity
+            .getInternalPropertiesAsMap()
+            .get(PolarisEntityConstants.getStorageConfigInfoPropertyName());
+    if (configStr == null) {
+      return builder.build();
+    }
+    PolarisStorageConfigurationInfo configInfo =
+        PolarisStorageConfigurationInfo.deserialize(configStr);
+    if (configInfo instanceof AwsStorageConfigurationInfo awsConfig) {
+      URI endpointUri = awsConfig.getEndpointUri();
+      if (endpointUri != null) {
+        builder.put(StorageAccessProperty.AWS_ENDPOINT, endpointUri.toString());
+      }
+      URI internalEndpointUri = awsConfig.getInternalEndpointUri();
+      if (internalEndpointUri != null) {
+        builder.putInternalProperty(
+            StorageAccessProperty.AWS_ENDPOINT.getPropertyName(), internalEndpointUri.toString());
+      }
+      if (Boolean.TRUE.equals(awsConfig.getPathStyleAccess())) {
+        builder.put(StorageAccessProperty.AWS_PATH_STYLE_ACCESS, Boolean.TRUE.toString());
+      }
+    }
+    return builder.build();
   }
 
   /**
