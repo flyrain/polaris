@@ -68,14 +68,20 @@ public class FeatureConfiguration<T> extends PolarisConfiguration<T> {
       PolarisConfiguration.<Boolean>builder()
           .key("SKIP_CREDENTIAL_SUBSCOPING_INDIRECTION")
           .description(
-              "If set to true, skip credential-subscoping indirection entirely whenever trying\n"
-                  + "   to obtain storage credentials for instantiating a FileIO. If 'true', no attempt is made\n"
-                  + "   to use StorageConfigs to generate table-specific storage credentials, but instead the default\n"
-                  + "   fallthrough of table-level credential properties or else provider-specific APPLICATION_DEFAULT\n"
-                  + "   credential-loading will be used for the FileIO.\n"
-                  + "   Typically this setting is used in single-tenant server deployments that don't rely on\n"
-                  + "   \"credential-vending\" and can use server-default environment variables or credential config\n"
-                  + "   files for all storage access, or in test/dev scenarios.")
+              "If true, skip credential-subscoping when obtaining storage credentials for a\n"
+                  + "   FileIO. No AssumeRole is performed; instead, the FileIO falls back to\n"
+                  + "   table-level credential properties, or the provider's APPLICATION_DEFAULT\n"
+                  + "   credential chain (env vars, pod IAM role, etc.).\n"
+                  + "\n"
+                  + "   Intended for single-tenant deployments that don't rely on credential-vending\n"
+                  + "   (server-default env vars or credential files drive all storage access), and\n"
+                  + "   for test/dev scenarios with fake s3 paths.\n"
+                  + "\n"
+                  + "   NOT the flag for S3-compatible storage (MinIO, Ceph RGW, FlashBlade, etc.) —\n"
+                  + "   set 'stsUnavailable: true' on the catalog's storage config instead. That path\n"
+                  + "   skips AssumeRole while still vending the endpoint, path-style, and region the\n"
+                  + "   client needs. Enabling this flag on an S3-compatible catalog returns an empty\n"
+                  + "   config and causes clients to silently fall back to AWS.")
           .defaultValue(false)
           .buildFeatureConfiguration();
 

@@ -431,7 +431,7 @@ A comma-separated list of fields to include as session tags in AWS STS AssumeRol
 
 ##### `polaris.features."SKIP_CREDENTIAL_SUBSCOPING_INDIRECTION"`
 
-If set to true, skip credential-subscoping indirection entirely whenever trying to obtain storage credentials for instantiating a FileIO. If 'true', no attempt is made to use StorageConfigs to generate table-specific storage credentials, but instead the default fallthrough of table-level credential properties or else provider-specific APPLICATION_DEFAULT credential-loading will be used for the FileIO. Typically this setting is used in single-tenant server deployments that don't rely on "credential-vending" and can use server-default environment variables or credential config files for all storage access, or in test/dev scenarios.
+If true, skip credential-subscoping when obtaining storage credentials for a FileIO. No AssumeRole is performed; instead, the FileIO falls back to table-level credential properties, or the provider's APPLICATION_DEFAULT credential chain (env vars, pod IAM role, etc.). Intended for single-tenant deployments that don't rely on credential-vending (server-default env vars or credential files drive all storage access), and for test/dev scenarios with fake s3 paths. NOT the flag for S3-compatible storage (MinIO, Ceph RGW, FlashBlade, etc.) — set 'stsUnavailable: true' on the catalog's storage config instead. That path skips AssumeRole while still vending the endpoint, path-style, and region the client needs. Enabling this flag on an S3-compatible catalog returns an empty config and causes clients to silently fall back to AWS.
 
 - **Type:** `Boolean`
 - **Default:** `false`
