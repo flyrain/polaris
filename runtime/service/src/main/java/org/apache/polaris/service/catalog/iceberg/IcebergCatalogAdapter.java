@@ -45,7 +45,6 @@ import org.apache.iceberg.rest.requests.ReportMetricsRequest;
 import org.apache.iceberg.rest.requests.UpdateNamespacePropertiesRequest;
 import org.apache.iceberg.rest.requests.UpdateTableRequest;
 import org.apache.iceberg.rest.responses.LoadTableResponse;
-import org.apache.polaris.core.auth.PolarisPrincipal;
 import org.apache.polaris.core.config.RealmConfig;
 import org.apache.polaris.core.context.CallContext;
 import org.apache.polaris.core.context.RealmContext;
@@ -101,7 +100,7 @@ public class IcebergCatalogAdapter
       SecurityContext securityContext,
       String prefix,
       Function<IcebergCatalogHandler, Response> action) {
-    String catalogName = prefixParser.prefixToCatalogName(prefix);
+    var catalogName = prefixParser.prefixToCatalogName(prefix);
     return withCatalogByName(securityContext, catalogName, action);
   }
 
@@ -122,7 +121,7 @@ public class IcebergCatalogAdapter
 
   @VisibleForTesting
   IcebergCatalogHandler newHandler(SecurityContext securityContext, String catalogName) {
-    PolarisPrincipal principal = validatePrincipal(securityContext);
+    var principal = validatePrincipal(securityContext);
     return handlerFactory.createHandler(catalogName, principal);
   }
 
@@ -149,7 +148,7 @@ public class IcebergCatalogAdapter
       String parent,
       RealmContext realmContext,
       SecurityContext securityContext) {
-    Optional<Namespace> namespaceOptional =
+    var namespaceOptional =
         Optional.ofNullable(parent)
             .map(
                 namespace ->
@@ -168,8 +167,7 @@ public class IcebergCatalogAdapter
   @Override
   public Response loadNamespaceMetadata(
       String prefix, String namespace, RealmContext realmContext, SecurityContext securityContext) {
-    Namespace ns =
-        NamespaceUtils.splitNamespace(namespace, NamespaceUtils.DEFAULT_NAMESPACE_SEPARATOR);
+    var ns = NamespaceUtils.splitNamespace(namespace, NamespaceUtils.DEFAULT_NAMESPACE_SEPARATOR);
     return withCatalog(
         securityContext, prefix, catalog -> Response.ok(catalog.loadNamespaceMetadata(ns)).build());
   }
@@ -202,8 +200,7 @@ public class IcebergCatalogAdapter
   @Override
   public Response namespaceExists(
       String prefix, String namespace, RealmContext realmContext, SecurityContext securityContext) {
-    Namespace ns =
-        NamespaceUtils.splitNamespace(namespace, NamespaceUtils.DEFAULT_NAMESPACE_SEPARATOR);
+    var ns = NamespaceUtils.splitNamespace(namespace, NamespaceUtils.DEFAULT_NAMESPACE_SEPARATOR);
     return withCatalog(
         securityContext,
         prefix,
@@ -220,8 +217,7 @@ public class IcebergCatalogAdapter
       UUID idempotencyKey,
       RealmContext realmContext,
       SecurityContext securityContext) {
-    Namespace ns =
-        NamespaceUtils.splitNamespace(namespace, NamespaceUtils.DEFAULT_NAMESPACE_SEPARATOR);
+    var ns = NamespaceUtils.splitNamespace(namespace, NamespaceUtils.DEFAULT_NAMESPACE_SEPARATOR);
     return withCatalog(
         securityContext,
         prefix,
@@ -241,9 +237,8 @@ public class IcebergCatalogAdapter
       SecurityContext securityContext) {
     updateNamespacePropertiesRequest.validate();
     validateIcebergProperties(realmConfig, updateNamespacePropertiesRequest.updates());
-    Namespace ns =
-        NamespaceUtils.splitNamespace(namespace, NamespaceUtils.DEFAULT_NAMESPACE_SEPARATOR);
-    UpdateNamespacePropertiesRequest revisedRequest =
+    var ns = NamespaceUtils.splitNamespace(namespace, NamespaceUtils.DEFAULT_NAMESPACE_SEPARATOR);
+    var revisedRequest =
         UpdateNamespacePropertiesRequest.builder()
             .removeAll(
                 reservedProperties.removeReservedProperties(
@@ -275,16 +270,14 @@ public class IcebergCatalogAdapter
       SecurityContext securityContext) {
     createTableRequest.validate();
     validateIcebergProperties(realmConfig, createTableRequest.properties());
-    EnumSet<AccessDelegationMode> delegationModes =
-        parseAccessDelegationModes(accessDelegationMode);
-    Namespace ns =
-        NamespaceUtils.splitNamespace(namespace, NamespaceUtils.DEFAULT_NAMESPACE_SEPARATOR);
+    var delegationModes = parseAccessDelegationModes(accessDelegationMode);
+    var ns = NamespaceUtils.splitNamespace(namespace, NamespaceUtils.DEFAULT_NAMESPACE_SEPARATOR);
     EntityNameValidator.validateIdentifier(TableIdentifier.of(ns, createTableRequest.name()));
     return withCatalog(
         securityContext,
         prefix,
         catalog -> {
-          Optional<String> refreshCredentialsEndpoint =
+          var refreshCredentialsEndpoint =
               getRefreshCredentialsEndpoint(
                   delegationModes,
                   prefix,
@@ -295,7 +288,7 @@ public class IcebergCatalogAdapter
                         ns, createTableRequest, delegationModes, refreshCredentialsEndpoint))
                 .build();
           } else {
-            LoadTableResponse response =
+            var response =
                 catalog.createTableDirect(
                     ns, createTableRequest, delegationModes, refreshCredentialsEndpoint);
             return tryInsertETagHeader(
@@ -313,8 +306,7 @@ public class IcebergCatalogAdapter
       Integer pageSize,
       RealmContext realmContext,
       SecurityContext securityContext) {
-    Namespace ns =
-        NamespaceUtils.splitNamespace(namespace, NamespaceUtils.DEFAULT_NAMESPACE_SEPARATOR);
+    var ns = NamespaceUtils.splitNamespace(namespace, NamespaceUtils.DEFAULT_NAMESPACE_SEPARATOR);
     return withCatalog(
         securityContext,
         prefix,
@@ -332,13 +324,11 @@ public class IcebergCatalogAdapter
       String referencedBy,
       RealmContext realmContext,
       SecurityContext securityContext) {
-    EnumSet<AccessDelegationMode> delegationModes =
-        parseAccessDelegationModes(accessDelegationMode);
-    Namespace ns =
-        NamespaceUtils.splitNamespace(namespace, NamespaceUtils.DEFAULT_NAMESPACE_SEPARATOR);
-    TableIdentifier tableIdentifier = TableIdentifier.of(ns, table);
+    var delegationModes = parseAccessDelegationModes(accessDelegationMode);
+    var ns = NamespaceUtils.splitNamespace(namespace, NamespaceUtils.DEFAULT_NAMESPACE_SEPARATOR);
+    var tableIdentifier = TableIdentifier.of(ns, table);
 
-    IfNoneMatch ifNoneMatch = IfNoneMatch.fromHeader(ifNoneMatchString);
+    var ifNoneMatch = IfNoneMatch.fromHeader(ifNoneMatchString);
 
     if (ifNoneMatch.isWildcard()) {
       throw new BadRequestException("If-None-Match may not take the value of '*'");
@@ -348,7 +338,7 @@ public class IcebergCatalogAdapter
         securityContext,
         prefix,
         catalog -> {
-          Optional<LoadTableResponse> response =
+          var response =
               catalog.loadTable(
                   tableIdentifier,
                   snapshots,
@@ -381,9 +371,8 @@ public class IcebergCatalogAdapter
       String table,
       RealmContext realmContext,
       SecurityContext securityContext) {
-    Namespace ns =
-        NamespaceUtils.splitNamespace(namespace, NamespaceUtils.DEFAULT_NAMESPACE_SEPARATOR);
-    TableIdentifier tableIdentifier = TableIdentifier.of(ns, table);
+    var ns = NamespaceUtils.splitNamespace(namespace, NamespaceUtils.DEFAULT_NAMESPACE_SEPARATOR);
+    var tableIdentifier = TableIdentifier.of(ns, table);
     return withCatalog(
         securityContext,
         prefix,
@@ -402,9 +391,8 @@ public class IcebergCatalogAdapter
       Boolean purgeRequested,
       RealmContext realmContext,
       SecurityContext securityContext) {
-    Namespace ns =
-        NamespaceUtils.splitNamespace(namespace, NamespaceUtils.DEFAULT_NAMESPACE_SEPARATOR);
-    TableIdentifier tableIdentifier = TableIdentifier.of(ns, table);
+    var ns = NamespaceUtils.splitNamespace(namespace, NamespaceUtils.DEFAULT_NAMESPACE_SEPARATOR);
+    var tableIdentifier = TableIdentifier.of(ns, table);
     return withCatalog(
         securityContext,
         prefix,
@@ -428,14 +416,13 @@ public class IcebergCatalogAdapter
       RealmContext realmContext,
       SecurityContext securityContext) {
     registerTableRequest.validate();
-    Namespace ns =
-        NamespaceUtils.splitNamespace(namespace, NamespaceUtils.DEFAULT_NAMESPACE_SEPARATOR);
+    var ns = NamespaceUtils.splitNamespace(namespace, NamespaceUtils.DEFAULT_NAMESPACE_SEPARATOR);
     EntityNameValidator.validateIdentifier(TableIdentifier.of(ns, registerTableRequest.name()));
     return withCatalog(
         securityContext,
         prefix,
         catalog -> {
-          LoadTableResponse response = catalog.registerTable(ns, registerTableRequest);
+          var response = catalog.registerTable(ns, registerTableRequest);
           return tryInsertETagHeader(
                   Response.ok(response), response, namespace, registerTableRequest.name())
               .build();
@@ -473,16 +460,15 @@ public class IcebergCatalogAdapter
         .map(MetadataUpdate.SetProperties.class::cast)
         .forEach(setProperties -> validateIcebergProperties(realmConfig, setProperties.updated()));
 
-    UpdateTableRequest revisedRequest =
+    var revisedRequest =
         UpdateTableRequest.create(
             commitTableRequest.identifier(),
             commitTableRequest.requirements(),
             commitTableRequest.updates().stream()
                 .map(reservedProperties::removeReservedProperties)
                 .toList());
-    Namespace ns =
-        NamespaceUtils.splitNamespace(namespace, NamespaceUtils.DEFAULT_NAMESPACE_SEPARATOR);
-    TableIdentifier tableIdentifier = TableIdentifier.of(ns, table);
+    var ns = NamespaceUtils.splitNamespace(namespace, NamespaceUtils.DEFAULT_NAMESPACE_SEPARATOR);
+    var tableIdentifier = TableIdentifier.of(ns, table);
     return withCatalog(
         securityContext,
         prefix,
@@ -506,12 +492,11 @@ public class IcebergCatalogAdapter
     createViewRequest.validate();
     validateIcebergProperties(realmConfig, createViewRequest.properties());
 
-    CreateViewRequest revisedRequest =
+    var revisedRequest =
         ImmutableCreateViewRequest.copyOf(createViewRequest)
             .withProperties(
                 reservedProperties.removeReservedProperties(createViewRequest.properties()));
-    Namespace ns =
-        NamespaceUtils.splitNamespace(namespace, NamespaceUtils.DEFAULT_NAMESPACE_SEPARATOR);
+    var ns = NamespaceUtils.splitNamespace(namespace, NamespaceUtils.DEFAULT_NAMESPACE_SEPARATOR);
     EntityNameValidator.validateIdentifier(TableIdentifier.of(ns, revisedRequest.name()));
     return withCatalog(
         securityContext,
@@ -527,8 +512,7 @@ public class IcebergCatalogAdapter
       Integer pageSize,
       RealmContext realmContext,
       SecurityContext securityContext) {
-    Namespace ns =
-        NamespaceUtils.splitNamespace(namespace, NamespaceUtils.DEFAULT_NAMESPACE_SEPARATOR);
+    var ns = NamespaceUtils.splitNamespace(namespace, NamespaceUtils.DEFAULT_NAMESPACE_SEPARATOR);
     return withCatalog(
         securityContext,
         prefix,
@@ -544,10 +528,9 @@ public class IcebergCatalogAdapter
       String referencedBy,
       RealmContext realmContext,
       SecurityContext securityContext) {
-    Namespace ns =
-        NamespaceUtils.splitNamespace(namespace, NamespaceUtils.DEFAULT_NAMESPACE_SEPARATOR);
-    TableIdentifier tableIdentifier = TableIdentifier.of(ns, table);
-    Optional<String> refreshEndpoint =
+    var ns = NamespaceUtils.splitNamespace(namespace, NamespaceUtils.DEFAULT_NAMESPACE_SEPARATOR);
+    var tableIdentifier = TableIdentifier.of(ns, table);
+    var refreshEndpoint =
         Optional.of(new PolarisResourcePaths(prefix).credentialsPath(tableIdentifier));
     return withCatalog(
         securityContext,
@@ -563,9 +546,8 @@ public class IcebergCatalogAdapter
       String referencedBy,
       RealmContext realmContext,
       SecurityContext securityContext) {
-    Namespace ns =
-        NamespaceUtils.splitNamespace(namespace, NamespaceUtils.DEFAULT_NAMESPACE_SEPARATOR);
-    TableIdentifier tableIdentifier = TableIdentifier.of(ns, view);
+    var ns = NamespaceUtils.splitNamespace(namespace, NamespaceUtils.DEFAULT_NAMESPACE_SEPARATOR);
+    var tableIdentifier = TableIdentifier.of(ns, view);
     return withCatalog(
         securityContext, prefix, catalog -> Response.ok(catalog.loadView(tableIdentifier)).build());
   }
@@ -577,9 +559,8 @@ public class IcebergCatalogAdapter
       String view,
       RealmContext realmContext,
       SecurityContext securityContext) {
-    Namespace ns =
-        NamespaceUtils.splitNamespace(namespace, NamespaceUtils.DEFAULT_NAMESPACE_SEPARATOR);
-    TableIdentifier tableIdentifier = TableIdentifier.of(ns, view);
+    var ns = NamespaceUtils.splitNamespace(namespace, NamespaceUtils.DEFAULT_NAMESPACE_SEPARATOR);
+    var tableIdentifier = TableIdentifier.of(ns, view);
     return withCatalog(
         securityContext,
         prefix,
@@ -597,9 +578,8 @@ public class IcebergCatalogAdapter
       UUID idempotencyKey,
       RealmContext realmContext,
       SecurityContext securityContext) {
-    Namespace ns =
-        NamespaceUtils.splitNamespace(namespace, NamespaceUtils.DEFAULT_NAMESPACE_SEPARATOR);
-    TableIdentifier tableIdentifier = TableIdentifier.of(ns, view);
+    var ns = NamespaceUtils.splitNamespace(namespace, NamespaceUtils.DEFAULT_NAMESPACE_SEPARATOR);
+    var tableIdentifier = TableIdentifier.of(ns, view);
     return withCatalog(
         securityContext,
         prefix,
@@ -635,16 +615,15 @@ public class IcebergCatalogAdapter
       UUID idempotencyKey,
       RealmContext realmContext,
       SecurityContext securityContext) {
-    UpdateTableRequest revisedRequest =
+    var revisedRequest =
         UpdateTableRequest.create(
             commitViewRequest.identifier(),
             commitViewRequest.requirements(),
             commitViewRequest.updates().stream()
                 .map(reservedProperties::removeReservedProperties)
                 .toList());
-    Namespace ns =
-        NamespaceUtils.splitNamespace(namespace, NamespaceUtils.DEFAULT_NAMESPACE_SEPARATOR);
-    TableIdentifier tableIdentifier = TableIdentifier.of(ns, view);
+    var ns = NamespaceUtils.splitNamespace(namespace, NamespaceUtils.DEFAULT_NAMESPACE_SEPARATOR);
+    var tableIdentifier = TableIdentifier.of(ns, view);
     return withCatalog(
         securityContext,
         prefix,
@@ -664,7 +643,7 @@ public class IcebergCatalogAdapter
         .map(MetadataUpdate.SetProperties.class::cast)
         .forEach(setProperties -> validateIcebergProperties(realmConfig, setProperties.updated()));
 
-    CommitTransactionRequest revisedRequest =
+    var revisedRequest =
         new CommitTransactionRequest(
             commitTransactionRequest.tableChanges().stream()
                 .map(
@@ -694,9 +673,8 @@ public class IcebergCatalogAdapter
       ReportMetricsRequest reportMetricsRequest,
       RealmContext realmContext,
       SecurityContext securityContext) {
-    Namespace ns =
-        NamespaceUtils.splitNamespace(namespace, NamespaceUtils.DEFAULT_NAMESPACE_SEPARATOR);
-    TableIdentifier tableIdentifier = TableIdentifier.of(ns, table);
+    var ns = NamespaceUtils.splitNamespace(namespace, NamespaceUtils.DEFAULT_NAMESPACE_SEPARATOR);
+    var tableIdentifier = TableIdentifier.of(ns, table);
     return withCatalog(
         securityContext,
         prefix,
@@ -714,9 +692,8 @@ public class IcebergCatalogAdapter
       NotificationRequest notificationRequest,
       RealmContext realmContext,
       SecurityContext securityContext) {
-    Namespace ns =
-        NamespaceUtils.splitNamespace(namespace, NamespaceUtils.DEFAULT_NAMESPACE_SEPARATOR);
-    TableIdentifier tableIdentifier = TableIdentifier.of(ns, table);
+    var ns = NamespaceUtils.splitNamespace(namespace, NamespaceUtils.DEFAULT_NAMESPACE_SEPARATOR);
+    var tableIdentifier = TableIdentifier.of(ns, table);
     return withCatalog(
         securityContext,
         prefix,
