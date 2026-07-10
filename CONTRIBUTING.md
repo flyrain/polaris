@@ -144,7 +144,7 @@ To ensure smooth collaboration and to maintain a high-quality codebase, please a
 * Write clear, concise, and well-documented code. This includes providing inline comments when necessary.
 * Keep your changes focused and granular. Separate unrelated changes into multiple pull requests.
 * Write unit tests for your code changes, whenever applicable, and make sure the existing tests pass successfully.
-* Make sure your code compiles without any errors or warnings.
+* Make sure your code compiles without any errors. Pull requests must not introduce new build warnings, including warnings caused by intentional changes such as deprecations. Resolve every new warning before the pull request is merged.
 * Avoid introducing unnecessary dependencies. If you need to include a new dependency, please justify it and discuss with the community first (using the dev mailing list).
 * Be responsive and open to feedback during the code review process.
 * Change of public interface (or more generally speaking Polaris extension point) should be discussed and approved on the dev mailing list.
