@@ -42,7 +42,7 @@ jobs:
           git show FETCH_HEAD:site/content/in-dev/unreleased/getting-started/creating-a-catalog/_index.md > site/content/in-dev/unreleased/getting-started/creating-a-catalog/_index.md
           git fetch --quiet https://github.com/flyrain/polaris.git a65b4b0255302acea5cc597296d6abb880fc7d32
           git show FETCH_HEAD:spec/polaris-management-service.yml > spec/polaris-management-service.yml
-          git fetch --quiet https://github.com/flyrain/polaris.git f7ce4b66600fa3e8bc26b77b14024e6875af94d3
+          git fetch --quiet https://github.com/flyrain/polaris.git 77ba7a55b540a9b3e56af6f46c6a92abd2682cc7
           git show FETCH_HEAD:site/content/in-dev/unreleased/policy.md > site/content/in-dev/unreleased/policy.md
           git fetch --quiet https://github.com/flyrain/polaris.git f0da91c2ef2524b1edcaa32b75d4689e4a851387
           git show FETCH_HEAD:site/content/in-dev/unreleased/federation/hadoop-catalog-federation.md > site/content/in-dev/unreleased/federation/hadoop-catalog-federation.md
