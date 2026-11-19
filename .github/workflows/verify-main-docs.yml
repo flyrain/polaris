@@ -1,0 +1,53 @@
+#
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+name: Verify the unreleased documentation and Management API
+on:
+  push:
+    branches: ['yf/verify-main-docs-20261118']
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 70
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@d1374f8ac74474200d16ef8ecee22c7ae7a51880
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Apply the five main branch changes
+        run: |
+          git fetch --quiet https://github.com/flyrain/polaris.git 066590fb6ee22f38087ad3b683c93d932ca67e47
+          git show FETCH_HEAD:site/content/in-dev/unreleased/metastores/relational-jdbc.md > site/content/in-dev/unreleased/metastores/relational-jdbc.md
+          git fetch --quiet https://github.com/flyrain/polaris.git a3806f5765065ee6d6b27adb122b8c21c3d0a993
+          git show FETCH_HEAD:site/content/in-dev/unreleased/getting-started/creating-a-catalog/_index.md > site/content/in-dev/unreleased/getting-started/creating-a-catalog/_index.md
+          git fetch --quiet https://github.com/flyrain/polaris.git a65b4b0255302acea5cc597296d6abb880fc7d32
+          git show FETCH_HEAD:spec/polaris-management-service.yml > spec/polaris-management-service.yml
+          git fetch --quiet https://github.com/flyrain/polaris.git f7ce4b66600fa3e8bc26b77b14024e6875af94d3
+          git show FETCH_HEAD:site/content/in-dev/unreleased/policy.md > site/content/in-dev/unreleased/policy.md
+          git fetch --quiet https://github.com/flyrain/polaris.git f0da91c2ef2524b1edcaa32b75d4689e4a851387
+          git show FETCH_HEAD:site/content/in-dev/unreleased/federation/hadoop-catalog-federation.md > site/content/in-dev/unreleased/federation/hadoop-catalog-federation.md
+          git diff --check
+      - name: Format and compile all projects
+        run: ./gradlew format compileAll
+      - name: Check the management model and service modules
+        run: ./gradlew :polaris-api-management-model:check :polaris-api-management-service:check
