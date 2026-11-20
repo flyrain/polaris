@@ -22,10 +22,12 @@ import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.api.trace.Tracer;
 import io.opentelemetry.context.Context;
 import io.opentelemetry.context.Scope;
-import io.quarkus.runtime.Startup;
+import io.quarkus.runtime.StartupEvent;
 import io.smallrye.common.annotation.Identifier;
+import jakarta.annotation.PreDestroy;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.context.control.ActivateRequestContext;
+import jakarta.enterprise.event.Observes;
 import jakarta.enterprise.inject.Instance;
 import jakarta.inject.Inject;
 import java.time.Clock;
@@ -37,19 +39,25 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import org.apache.commons.lang3.function.TriConsumer;
 import org.apache.polaris.core.StructuredLogKeys;
 import org.apache.polaris.core.auth.ImmutablePolarisPrincipal;
 import org.apache.polaris.core.auth.PolarisPrincipal;
 import org.apache.polaris.core.collection.ImmutableAttributeMap;
+import org.apache.polaris.core.config.RealmConfigurationSource;
 import org.apache.polaris.core.context.CallContext;
+import org.apache.polaris.core.entity.AsyncTaskType;
 import org.apache.polaris.core.entity.PolarisBaseEntity;
+import org.apache.polaris.core.entity.PolarisEntitySubType;
 import org.apache.polaris.core.entity.PolarisEntityType;
 import org.apache.polaris.core.entity.TaskEntity;
 import org.apache.polaris.core.persistence.MetaStoreManagerFactory;
 import org.apache.polaris.core.persistence.PolarisMetaStoreManager;
+import org.apache.polaris.core.persistence.PolarisObjectMapperUtil;
 import org.apache.polaris.core.persistence.dao.entity.BaseResult;
 import org.apache.polaris.core.persistence.dao.entity.EntityResult;
+import org.apache.polaris.service.context.RealmContextConfiguration;
 import org.apache.polaris.service.context.catalog.PolarisPrincipalHolder;
 import org.apache.polaris.service.context.catalog.RealmContextHolder;
 import org.apache.polaris.service.events.EventAttributes;
@@ -73,6 +81,7 @@ public class TaskExecutorImpl implements TaskExecutor {
   private static final Logger LOGGER = LoggerFactory.getLogger(TaskExecutorImpl.class);
   private static final long TASK_RETRY_DELAY = 1000;
 
+  private final PurgeTaskRecovery recovery;
   private final Executor executor;
   private final Clock clock;
   private final MetaStoreManagerFactory metaStoreManagerFactory;
@@ -107,6 +116,7 @@ public class TaskExecutorImpl implements TaskExecutor {
       PolarisPrincipalHolder polarisPrincipalHolder,
       PolarisPrincipal polarisPrincipal,
       TaskHandlerConfiguration taskConfiguration) {
+    this.recovery = new PurgeTaskRecovery(clock, metaStoreManagerFactory);
     this.executor = executor;
     this.clock = clock;
     this.metaStoreManagerFactory = metaStoreManagerFactory;
@@ -126,7 +136,6 @@ public class TaskExecutorImpl implements TaskExecutor {
     }
   }
 
-  @Startup
   public void init() {
     addTaskHandler(
         new TableCleanupTaskHandler(this, clock, metaStoreManagerFactory, fileIOSupplier));
@@ -140,6 +149,19 @@ public class TaskExecutorImpl implements TaskExecutor {
             fileIOSupplier,
             Executors.newVirtualThreadPerTaskExecutor(),
             taskConfiguration.fileDeletionTimeout()));
+  }
+
+  void startRecovery(
+      @Observes StartupEvent event,
+      RealmContextConfiguration realms,
+      RealmConfigurationSource config) {
+    init();
+    recovery.start(realms.realms(), config, this::executeRecovered);
+  }
+
+  @PreDestroy
+  void stopRecovery() {
+    recovery.close();
   }
 
   /**
@@ -169,13 +191,41 @@ public class TaskExecutorImpl implements TaskExecutor {
 
     // Capture the metadata now in order to capture the principal and request ID, if any.
     PolarisEventMetadata eventMetadata = eventMetadataFactory.create();
-    tryHandleTask(taskEntityId, clone, eventMetadata, null, 1);
+    var principal = ImmutablePolarisPrincipal.builder().from(polarisPrincipal).build();
+    var claim = new AtomicReference<PurgeTaskRecovery.Lease>();
+    tryHandleTask(taskEntityId, clone, principal, eventMetadata, claim, null, 1)
+        .whenComplete(
+            (ignored, failure) -> {
+              var lease = claim.get();
+              if (lease != null) {
+                lease.release(failure);
+              }
+            });
+  }
+
+  CompletableFuture<Void> executeRecovered(
+      PolarisBaseEntity task, CallContext context, PurgeTaskRecovery.Lease lease) {
+    var principal =
+        PolarisObjectMapperUtil.deserialize(
+                task.getInternalPropertiesAsMap().get(TaskUtils.PURGE_IDENTITY),
+                TaskUtils.PurgeIdentity.class)
+            .principal();
+    var metadata =
+        PolarisEventMetadata.builder()
+            .realmId(context.getRealmContext().getRealmIdentifier())
+            .user(principal)
+            .timestamp(clock.instant())
+            .build();
+    return tryHandleTask(
+        task.getId(), context, principal, metadata, new AtomicReference<>(lease), null, 1);
   }
 
   private @NonNull CompletableFuture<Void> tryHandleTask(
       long taskEntityId,
       CallContext callContext,
+      PolarisPrincipal principalClone,
       PolarisEventMetadata eventMetadata,
+      AtomicReference<PurgeTaskRecovery.Lease> claim,
       Throwable previousError,
       int attempt) {
     if (attempt > 3) {
@@ -183,13 +233,16 @@ public class TaskExecutorImpl implements TaskExecutor {
     }
     String realmId = callContext.getRealmContext().getRealmIdentifier();
 
-    PolarisPrincipal principalClone =
-        ImmutablePolarisPrincipal.builder().from(polarisPrincipal).build();
-
     return CompletableFuture.runAsync(
             () -> {
               handleTaskWithTracing(
-                  realmId, taskEntityId, callContext, principalClone, eventMetadata, attempt);
+                  realmId,
+                  taskEntityId,
+                  callContext,
+                  principalClone,
+                  eventMetadata,
+                  attempt,
+                  claim);
               errorHandler.ifPresent(h -> h.accept(taskEntityId, false, null));
             },
             executor)
@@ -202,13 +255,15 @@ public class TaskExecutorImpl implements TaskExecutor {
               if (!isRetryable(t)) {
                 LOGGER.warn(
                     "Task entity id {} failed with a terminal error; not retrying in-process. The"
-                        + " task entity stays persisted (the same end state as exhausting retries).",
+                        + " task entity stays persisted (the same end state as exhausting"
+                        + " retries).",
                     taskEntityId,
                     t);
                 return CompletableFuture.<Void>failedFuture(t);
               }
               LOGGER.warn("Failed to handle task entity id {}", taskEntityId, t);
-              return tryHandleTask(taskEntityId, callContext, eventMetadata, t, attempt + 1);
+              return tryHandleTask(
+                  taskEntityId, callContext, principalClone, eventMetadata, claim, t, attempt + 1);
             },
             CompletableFuture.delayedExecutor(
                 TASK_RETRY_DELAY * (long) attempt, TimeUnit.MILLISECONDS, executor));
@@ -231,6 +286,15 @@ public class TaskExecutorImpl implements TaskExecutor {
 
   protected void handleTask(
       long taskEntityId, CallContext ctx, PolarisEventMetadata eventMetadata, int attempt) {
+    handleTask(taskEntityId, ctx, eventMetadata, attempt, null);
+  }
+
+  private void handleTask(
+      long taskEntityId,
+      CallContext ctx,
+      PolarisEventMetadata eventMetadata,
+      int attempt,
+      @Nullable AtomicReference<PurgeTaskRecovery.Lease> claim) {
     if (polarisEventDispatcher.hasListeners(PolarisEventType.BEFORE_ATTEMPT_TASK)) {
       polarisEventDispatcher.dispatch(
           new PolarisEvent(
@@ -278,6 +342,19 @@ public class TaskExecutorImpl implements TaskExecutor {
       if (!PolarisEntityType.TASK.equals(taskEntity.getType())) {
         throw new IllegalArgumentException("Provided taskId must be a task entity type");
       }
+      PurgeTaskRecovery.Lease lease = claim == null ? null : claim.get();
+      if (claim != null
+          && taskEntity.getInternalPropertiesAsMap().containsKey(TaskUtils.PURGE_IDENTITY)) {
+        if (lease == null) {
+          lease = recovery.claim(taskEntity, ctx);
+          claim.set(lease);
+          if (lease == null) {
+            return;
+          }
+        } else if (!lease.owns(taskEntity)) {
+          return;
+        }
+      }
       TaskEntity task = TaskEntity.of(taskEntity);
       Optional<TaskHandler> handlerOpt =
           taskHandlers.stream().filter(th -> th.canHandleTask(task)).findFirst();
@@ -304,8 +381,24 @@ public class TaskExecutorImpl implements TaskExecutor {
           .addKeyValue(StructuredLogKeys.TASK_ENTITY_ID, taskEntityId)
           .addKeyValue(StructuredLogKeys.HANDLER_CLASS, handler.getClass())
           .log("Task successfully handled");
-      metaStoreManager.dropEntityIfExists(
-          ctx.getPolarisCallContext(), null, taskEntity, Map.of(), false);
+      if (lease != null) {
+        lease.complete();
+        if (task.getTaskType() == AsyncTaskType.ENTITY_CLEANUP_SCHEDULER) {
+          var first =
+              metaStoreManager.readEntityByName(
+                  ctx.getPolarisCallContext(),
+                  null,
+                  PolarisEntityType.TASK,
+                  PolarisEntitySubType.NULL_SUBTYPE,
+                  TableCleanupTaskHandler.firstChildName(task.getId()));
+          if (first.isSuccess()) {
+            addTaskHandlerContext(first.getEntity().getId(), ctx);
+          }
+        }
+      } else {
+        metaStoreManager.dropEntityIfExists(
+            ctx.getPolarisCallContext(), null, taskEntity, Map.of(), false);
+      }
     } catch (TaskHandlerNotFoundException e) {
       // success stays false (never set true). Re-throw without the generic failure log below.
       throw e;
@@ -343,7 +436,8 @@ public class TaskExecutorImpl implements TaskExecutor {
       CallContext callContext,
       PolarisPrincipal principal,
       PolarisEventMetadata eventMetadata,
-      int attempt) {
+      int attempt,
+      @Nullable AtomicReference<PurgeTaskRecovery.Lease> claim) {
     // Note: each call to this method runs in a new CDI request context
 
     realmContextHolder.set(() -> realmId);
@@ -353,7 +447,7 @@ public class TaskExecutorImpl implements TaskExecutor {
     polarisPrincipalHolder.set(principal);
 
     if (tracer == null) {
-      handleTask(taskEntityId, callContext, eventMetadata, attempt);
+      handleTask(taskEntityId, callContext, eventMetadata, attempt, claim);
     } else {
       Span span =
           tracer
@@ -366,7 +460,7 @@ public class TaskExecutorImpl implements TaskExecutor {
               .setAttribute("polaris.task.attempt", attempt)
               .startSpan();
       try (Scope ignored = span.makeCurrent()) {
-        handleTask(taskEntityId, callContext, eventMetadata, attempt);
+        handleTask(taskEntityId, callContext, eventMetadata, attempt, claim);
       } finally {
         span.end();
       }

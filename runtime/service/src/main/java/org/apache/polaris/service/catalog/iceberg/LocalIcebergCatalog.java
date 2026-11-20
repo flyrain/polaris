@@ -192,6 +192,7 @@ public class LocalIcebergCatalog extends BaseMetastoreViewCatalog
   private final PolarisResolutionManifestCatalogView resolvedEntityView;
   private final CatalogEntity catalogEntity;
   private final TaskExecutor taskExecutor;
+  private final PolarisPrincipal principal;
   private final PolarisEventDispatcher polarisEventDispatcher;
   private final PolarisEventMetadataFactory eventMetadataFactory;
   private final AtomicBoolean loggedPrefixOverlapWarning = new AtomicBoolean(false);
@@ -274,6 +275,7 @@ public class LocalIcebergCatalog extends BaseMetastoreViewCatalog
     this.resolvedEntityView = resolvedEntityView;
     this.catalogEntity = resolvedEntityView.getResolvedCatalogEntity();
     this.taskExecutor = taskExecutor;
+    this.principal = principal;
     this.catalogId = catalogEntity.getId();
     this.catalogName = catalogEntity.getName();
     this.storageAccessConfigProvider = storageAccessConfigProvider;
@@ -663,7 +665,12 @@ public class LocalIcebergCatalog extends BaseMetastoreViewCatalog
             .orElse(Map.of());
     DropEntityResult dropEntityResult =
         dropTableLike(
-            PolarisEntitySubType.ICEBERG_TABLE, tableIdentifier, storageProperties, purge);
+            PolarisEntitySubType.ICEBERG_TABLE,
+            tableIdentifier,
+            triggerCleanup
+                ? TaskUtils.withPurgeIdentity(storageProperties, principal)
+                : storageProperties,
+            purge);
     if (!dropEntityResult.isSuccess()) {
       switch (dropEntityResult.getReturnStatus()) {
         case BaseResult.ReturnStatus.ENTITY_NOT_FOUND:
@@ -1272,7 +1279,7 @@ public class LocalIcebergCatalog extends BaseMetastoreViewCatalog
             TaskUtils.encodeStorageLocations(
                 storedViewLocationsForPurge(identifier, lastMetadata)));
 
-        storageProperties = clone;
+        storageProperties = TaskUtils.withPurgeIdentity(clone, principal);
       }
     }
 

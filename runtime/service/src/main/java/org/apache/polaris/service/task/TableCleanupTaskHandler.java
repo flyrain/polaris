@@ -46,6 +46,7 @@ import org.apache.polaris.core.entity.TaskEntity;
 import org.apache.polaris.core.entity.table.IcebergTableLikeEntity;
 import org.apache.polaris.core.persistence.MetaStoreManagerFactory;
 import org.apache.polaris.core.persistence.PolarisMetaStoreManager;
+import org.apache.polaris.core.persistence.dao.entity.BaseResult;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -116,12 +117,32 @@ public class TableCleanupTaskHandler implements TaskHandler {
         return;
       }
 
-      TableMetadata tableMetadata =
-          TableMetadataParser.read(fileIO, tableEntity.getMetadataLocation());
-
       PolarisMetaStoreManager metaStoreManager =
           metaStoreManagerFactory.getOrCreateMetaStoreManager(callContext.getRealmContext());
       PolarisCallContext polarisCallContext = callContext.getPolarisCallContext();
+      boolean recoverable =
+          cleanupTask.getInternalPropertiesAsMap().containsKey(TaskUtils.PURGE_IDENTITY);
+      String firstChildName = firstChildName(cleanupTask.getId());
+      if (recoverable) {
+        // The first child is committed with all its siblings and waits for the parent row to go
+        // away. Its presence proves the plan survived even if siblings already deleted manifests.
+        var first =
+            metaStoreManager.readEntityByName(
+                polarisCallContext,
+                null,
+                PolarisEntityType.TASK,
+                PolarisEntitySubType.NULL_SUBTYPE,
+                firstChildName);
+        if (first.isSuccess()) {
+          fileIO.deleteFile(tableEntity.getMetadataLocation());
+          return;
+        }
+        if (first.getReturnStatus() != BaseResult.ReturnStatus.ENTITY_NOT_FOUND) {
+          throw new IllegalStateException("Could not check purge plan: " + first.getReturnStatus());
+        }
+      }
+      TableMetadata tableMetadata =
+          TableMetadataParser.read(fileIO, tableEntity.getMetadataLocation());
 
       Stream<TaskEntity> manifestCleanupTasks =
           getManifestTaskStream(
@@ -139,6 +160,18 @@ public class TableCleanupTaskHandler implements TaskHandler {
       List<TaskEntity> taskEntities =
           Stream.concat(manifestCleanupTasks, metadataFileCleanupTasks).toList();
 
+      if (recoverable && !taskEntities.isEmpty()) {
+        taskEntities = new ArrayList<>(taskEntities);
+        TaskEntity first = taskEntities.getFirst();
+        var properties = first.getInternalPropertiesAsMap();
+        properties.put(TaskUtils.PARENT_TASK, Long.toString(cleanupTask.getId()));
+        taskEntities.set(
+            0,
+            new TaskEntity.Builder(first)
+                .setName(firstChildName)
+                .setInternalProperties(properties)
+                .build());
+      }
       List<PolarisBaseEntity> createdTasks =
           metaStoreManager
               .createEntitiesIfNotExist(polarisCallContext, null, taskEntities)
@@ -152,7 +185,9 @@ public class TableCleanupTaskHandler implements TaskHandler {
             .log(
                 "Successfully queued tasks to delete manifests, previous metadata, and statistics files - deleting table metadata file");
         for (PolarisBaseEntity createdTask : createdTasks) {
-          taskExecutor.addTaskHandlerContext(createdTask.getId(), polarisCallContext);
+          if (!recoverable || !createdTask.getName().equals(firstChildName)) {
+            taskExecutor.addTaskHandlerContext(createdTask.getId(), polarisCallContext);
+          }
         }
 
         fileIO.deleteFile(tableEntity.getMetadataLocation());
@@ -290,6 +325,10 @@ public class TableCleanupTaskHandler implements TaskHandler {
       result.add(metadataFiles.subList(i, Math.min(i + batchSize, metadataFiles.size())));
     }
     return result;
+  }
+
+  static String firstChildName(long parentId) {
+    return "purge-plan-" + parentId;
   }
 
   /**
