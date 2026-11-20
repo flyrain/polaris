@@ -56,14 +56,26 @@ jobs:
           path: site/content/releases
           persist-credentials: false
       - name: Build the documentation site
-        run: site/bin/create-static-site.sh
+        run: |
+          printf '%s\n' '#!/bin/sh' 'exec docker compose "$@"' > "$RUNNER_TEMP/compose"
+          chmod +x "$RUNNER_TEMP/compose"
+          COMPOSE="$RUNNER_TEMP/compose" site/bin/create-static-site.sh
       - name: Verify the rendered links and examples
         run: |
           python3 - <<'PYTHON'
           from pathlib import Path
+          from html.parser import HTMLParser
           root = Path('site/build/apache-site/in-dev/unreleased')
           docs = (root/'command-line-interface/index.html').read_text()
-          assert 'id="export"' in docs and 'omits policy attachments' in docs
+          class Anchors(HTMLParser):
+              def __init__(self):
+                  super().__init__()
+                  self.ids = set()
+              def handle_starttag(self, tag, attrs):
+                  self.ids.add(dict(attrs).get('id'))
+          anchors = Anchors()
+          anchors.feed(docs)
+          assert 'export' in anchors.ids and 'omits policy attachments' in docs
           restore = (root/'helm-chart/persistence/index.html').read_text()
           assert 'command-line-interface/#export' in restore and 'applicable' in restore
           assert 'Revoking table access' in (root/'vended-credentials/index.html').read_text()
