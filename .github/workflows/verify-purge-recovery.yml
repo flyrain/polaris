@@ -44,8 +44,27 @@ jobs:
           distribution: temurin
           java-version: '21'
       - uses: ./.github/actions/setup-test-env
+      - uses: gradle/actions/setup-gradle@0723195856401067f7a2779048b490ace7a47d7c
+        with:
+          cache-read-only: true
+          validate-wrappers: false
+      - name: Check plugin repositories
+        run: |
+          plugin_path=com/gradle/develocity/com.gradle.develocity.gradle.plugin/4.6.1/com.gradle.develocity.gradle.plugin-4.6.1.pom
+          impl_path=com/gradle/develocity-gradle-plugin/4.6.1/develocity-gradle-plugin-4.6.1.pom
+          for repo in https://repo.maven.apache.org/maven2 https://plugins.gradle.org/m2 https://maven-central.storage-download.googleapis.com/maven2; do
+            for artifact in "$plugin_path" "$impl_path"; do
+              curl -LsS --max-time 20 -o /dev/null -w '%{http_code} %{url_effective}\n' "$repo/$artifact" || true
+            done
+          done
+          mkdir -p ~/.gradle/init.d
+          cat > ~/.gradle/init.d/central-mirror.gradle <<'EOF'
+          beforeSettings { s ->
+            s.pluginManagement.repositories.maven { url = uri('https://maven-central.storage-download.googleapis.com/maven2') }
+          }
+          EOF
       - name: Format and compile
-        run: ./gradlew format compileAll
+        run: ./gradlew --refresh-dependencies --info format compileAll
       - name: Run runtime service checks
         run: ./gradlew :polaris-runtime-service:check
       - name: Check formatter output
