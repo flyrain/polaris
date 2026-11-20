@@ -25,11 +25,8 @@ package org.apache.polaris.service.task;
  * (the previous deletions keep running and cannot be interrupted).
  *
  * <p>The task entity is left persisted rather than dropped. That is the same end state as an
- * ordinary failure after in-process retries are exhausted, and it keeps the row eligible for
- * lease-based recovery via {@code PolarisMetaStoreManager.loadTasks} (which re-leases tasks whose
- * last attempt is older than {@code POLARIS_TASK_TIMEOUT_MILLIS}). Note that no runtime component
- * currently drives that recovery, so in practice the persisted task is not picked back up again in
- * either case; this only avoids the retry pile-up, it does not add a new recovery guarantee.
+ * ordinary failure after in-process retries are exhausted. A later recovery pass can reclaim a
+ * recoverable purge task after its lease expires.
  */
 class FileDeletionTimeoutException extends RuntimeException {
   FileDeletionTimeoutException(String message, Throwable cause) {

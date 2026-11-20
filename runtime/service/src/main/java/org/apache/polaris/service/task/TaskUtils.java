@@ -24,17 +24,43 @@ import com.fasterxml.jackson.databind.json.JsonMapper;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.ManifestFiles;
 import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.io.FileIO;
+import org.apache.polaris.core.auth.PolarisPrincipal;
+import org.apache.polaris.core.collection.AttributeMap;
 import org.apache.polaris.core.entity.PolarisTaskConstants;
+import org.apache.polaris.core.persistence.PolarisObjectMapperUtil;
 
 public class TaskUtils {
 
   private static final JsonMapper MAPPER = new JsonMapper();
+
+  static final String PURGE_IDENTITY = "polaris.internal.purgeIdentity";
+  static final String PARENT_TASK = "polaris.internal.purgeParent";
+
+  // Storage session tags need the original name and activated roles. Never persist bearer tokens
+  // or the request's arbitrary authentication attributes.
+  record PurgeIdentity(String name, Set<String> roles) {
+    PolarisPrincipal principal() {
+      return PolarisPrincipal.of(name, AttributeMap.EMPTY, roles);
+    }
+  }
+
+  public static Map<String, String> withPurgeIdentity(
+      Map<String, String> storageProperties, PolarisPrincipal principal) {
+    var properties = new HashMap<>(storageProperties);
+    properties.remove(PARENT_TASK);
+    properties.put(
+        PURGE_IDENTITY,
+        PolarisObjectMapperUtil.serialize(
+            new PurgeIdentity(principal.getName(), principal.getRoles())));
+    return properties;
+  }
 
   /** Encodes {@code locations} as the value of {@link PolarisTaskConstants#STORAGE_LOCATIONS}. */
   public static String encodeStorageLocations(Set<String> locations) {

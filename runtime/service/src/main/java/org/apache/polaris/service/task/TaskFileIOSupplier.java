@@ -52,6 +52,8 @@ public class TaskFileIOSupplier {
     Map<String, String> internalProperties = task.getInternalPropertiesAsMap();
     Map<String, String> properties = new HashMap<>(internalProperties);
 
+    properties.remove(TaskUtils.PURGE_IDENTITY);
+    properties.remove(TaskUtils.PARENT_TASK);
     Set<String> locations = TaskUtils.storageLocations(properties);
     Set<PolarisStorageActions> storageActions = Set.of(PolarisStorageActions.ALL);
     ResolvedPolarisEntity resolvedTaskEntity =

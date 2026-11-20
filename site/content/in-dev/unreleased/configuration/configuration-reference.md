@@ -189,6 +189,11 @@ configuration details.
 
 ### `polaris.tasks`
 
+Polaris retries interrupted purge tasks in each configured realm. If a worker stops or exhausts
+its local retries, another worker can claim the task after its lease expires. Polaris allows up
+to three recovery rounds and retains the task record if they all fail. Tasks created by older
+versions lack the original storage session identity and remain available for operator review.
+
 {{% include-config-section "smallrye-polaris_tasks" %}}
 
 ### `polaris.async`
